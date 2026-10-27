@@ -1,0 +1,7 @@
+# Keep LF line endings so scripts run under WSL and Git Bash on Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary

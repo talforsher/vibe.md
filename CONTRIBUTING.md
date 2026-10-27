@@ -1,0 +1,350 @@
+# Contributing to vibe.md
+
+Thank you for helping build vibe.md. This guide covers everything you need to add a new skill, improve an existing one, or work on the tooling around them.
+
+**The short version:** a new skill is one directory, `skills/<skill-name>/`, containing a `SKILL.md` file. Add it, run the validator, and open a Pull Request. You never need to change the installer, the validator, or CI to add a skill.
+
+## Contents
+
+- [Project philosophy](#project-philosophy)
+- [Code of Conduct](#code-of-conduct)
+- [Getting started](#getting-started)
+- [Repository architecture](#repository-architecture)
+- [Adding a skill](#adding-a-skill)
+- [The SKILL.md format](#the-skillmd-format)
+- [Optional resources](#optional-resources)
+- [A complete example](#a-complete-example)
+- [Validating and testing](#validating-and-testing)
+- [Pull Request workflow](#pull-request-workflow)
+- [Review criteria](#review-criteria)
+- [Security requirements](#security-requirements)
+- [Licensing and attribution](#licensing-and-attribution)
+- [Changing the tooling](#changing-the-tooling)
+- [Reporting bugs and proposing skills](#reporting-bugs-and-proposing-skills)
+
+## Project philosophy
+
+- **Everything around the code.** Skills focus on the work that surrounds writing code: Git workflows, reviews, testing, documentation, releases, deployment, and team processes.
+- **One skill, one job.** A skill should do one thing well. Two unrelated workflows belong in two skills.
+- **Portable by default.** Skills follow the open [Agent Skills](https://agentskills.io/specification) format so they work across coding agents. Agent-specific behavior is the exception and must be documented.
+- **Honest and safe.** A skill does exactly what it says, documents what it needs, and never surprises the user with destructive or hidden actions.
+- **Simple infrastructure.** The tooling discovers skills by convention. Keep it that way: no registries, manifests, or per-skill configuration.
+
+## Code of Conduct
+
+Everyone taking part in vibe.md is expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Be kind, assume good intent, and keep feedback about the work.
+
+## Getting started
+
+### Requirements
+
+| Tool | Needed for | Version |
+| --- | --- | --- |
+| Git | Everything | Any recent version |
+| Bash | Running the installer | 3.2 or later (the macOS default works) |
+| Python | Validator and tests | 3.9 or later |
+| PyYAML | Validator | Pinned in `requirements-dev.txt` |
+| ShellCheck | Linting the installer (optional locally, enforced in CI) | Any recent version |
+
+On Windows, use WSL or Git Bash.
+
+### Set up your copy
+
+```bash
+# 1. Fork https://github.com/vibe-md/vibe.md on GitHub, then clone your fork:
+git clone https://github.com/<your-username>/vibe.md.git
+cd vibe.md
+
+# 2. Install the development dependency (a virtual environment is recommended):
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements-dev.txt
+
+# 3. Make sure everything passes before you change anything:
+python3 scripts/validate-skills.py
+python3 -m unittest discover -s tests
+```
+
+## Repository architecture
+
+```text
+vibe.md/
+├── skills/                    # The skill collection: one directory per skill
+│   └── README.md
+├── scripts/
+│   ├── install.sh             # Universal installer (bash, no dependencies)
+│   └── validate-skills.py     # Validator used locally and in CI
+├── tests/
+│   ├── fixtures/valid/        # Sample skills that must pass validation
+│   ├── fixtures/invalid/      # One broken collection per failure case
+│   ├── test_validator.py
+│   └── test_installer.py
+└── .github/
+    ├── workflows/validate-skills.yml
+    ├── ISSUE_TEMPLATE/
+    └── PULL_REQUEST_TEMPLATE.md
+```
+
+Key rules:
+
+1. `skills/` is the single source of truth. Each skill exists exactly once, there.
+2. Every directory directly inside `skills/` is a skill and must contain `SKILL.md`.
+3. Skills are discovered automatically by the installer, the validator, and CI.
+4. Agent directories such as `.claude/skills/` are *installation destinations*, not sources. Never commit skills there.
+5. Test fixtures live in `tests/fixtures/` and never appear in the public catalog.
+
+## Adding a skill
+
+1. **Check for overlap.** Search the [existing skills](skills/) and [open Pull Requests](https://github.com/vibe-md/vibe.md/pulls). Improving an existing skill is often better than adding a near-duplicate.
+2. **Pick a name.** Lowercase letters, digits, and single hyphens, up to 64 characters, for example `release-notes` or `pr-review`. Prefer clear, descriptive names over clever ones.
+3. **Create the directory** `skills/<skill-name>/` and add `SKILL.md`.
+4. **Add optional resources** (`scripts/`, `references/`, `assets/`) only if the skill needs them.
+5. **Validate and test** as described below.
+6. **Open a Pull Request.**
+
+A skill contribution should only touch files inside `skills/<skill-name>/`. If you think the tooling needs to change to support your skill, open an issue first so we can keep the infrastructure generic.
+
+## The SKILL.md format
+
+`SKILL.md` has two parts: YAML frontmatter, then Markdown instructions.
+
+### Frontmatter
+
+The file must start with `---` on the very first line.
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `name` | Yes | 1–64 characters. Lowercase `a-z`, `0-9` and hyphens. No leading, trailing, or consecutive hyphens. Must match the directory name exactly. Must be unique. |
+| `description` | Yes | 20–1024 characters. Say what the skill does **and** when an agent should use it. |
+| `license` | No | A license name such as `MIT`, or the name of a bundled license file. |
+| `compatibility` | No | Up to 500 characters. Environment requirements, for example `Requires git and the GitHub CLI (gh)`. |
+| `metadata` | No | A mapping for extra information such as `author` or `version`. |
+| `allowed-tools` | No | Space-separated list of pre-approved tools. Experimental; support varies by agent. Avoid pre-approving shell access. |
+
+Agents may support additional fields (for example Claude Code's `disable-model-invocation`). The validator allows them, but every extra field makes a skill less portable, so use them only when necessary and explain why in your Pull Request.
+
+### Writing the description
+
+Agents usually see only the `name` and `description` until they decide to load a skill. The description is how your skill gets chosen, so make it specific:
+
+```yaml
+# Good: what it does, when to use it, and the words users actually say
+description: Writes release notes from merged pull requests and commit history. Use when preparing a release, drafting a changelog entry, or when the user asks what changed since the last tag.
+
+# Too vague: the agent cannot tell when this applies
+description: Helps with releases.
+```
+
+### Writing the instructions
+
+Use this structure as a starting point:
+
+```markdown
+# Skill Title
+
+## Purpose
+What problem the skill solves.
+
+## When to Use
+The situations where the agent should apply it, and when it should not.
+
+## Prerequisites
+Tools, accounts, permissions, or network access required.
+
+## Instructions
+Numbered, actionable steps. Say what to check before acting and what to confirm with the user.
+
+## Examples
+One or two realistic requests and what the agent should do.
+```
+
+Guidelines:
+
+- **Be actionable.** Write steps an agent can follow and a reviewer can verify. "Run `git status` and stop if the working tree is dirty" beats "make sure things are clean".
+- **Be concise.** The whole `SKILL.md` is loaded into the agent's context when the skill activates. Keep it under 500 lines (the validator warns above that) and move detail into `references/`.
+- **Be portable.** Do not assume a specific agent, operating system, or file layout unless you must. If you must, say so in `compatibility`.
+- **Use relative paths** for files inside the skill, such as `references/checklist.md`. Never reference files outside the skill directory: each skill is installed on its own.
+- **Ask before destructive actions.** Tell the agent to confirm with the user before deleting, force-pushing, publishing, or spending money.
+
+## Optional resources
+
+| Directory | Contents | Notes |
+| --- | --- | --- |
+| `scripts/` | Executable helpers the agent can run | Self-contained, documented dependencies, helpful error messages. Explain in `SKILL.md` what each script does. |
+| `references/` | Extra documentation loaded on demand | Keep each file focused; link to it from `SKILL.md`. |
+| `assets/` | Templates, examples, schemas, data | Static files only. |
+
+None of these directories is required. Other file names are allowed, but these conventions keep skills easy to review. Symbolic links are not allowed anywhere in a skill.
+
+The validator checks every relative Markdown link in `SKILL.md` (for example `[checklist](references/checklist.md)`): the target must exist and must be inside the skill directory. Links inside code blocks and inline code are not checked.
+
+## A complete example
+
+```text
+skills/
+└── release-notes/
+    ├── SKILL.md
+    ├── references/
+    │   └── style-guide.md
+    └── assets/
+        └── template.md
+```
+
+`skills/release-notes/SKILL.md`:
+
+````markdown
+---
+name: release-notes
+description: Writes release notes from merged pull requests and commit history. Use when preparing a release, drafting a changelog entry, or when the user asks what changed since the last tag.
+license: MIT
+compatibility: Requires git. Uses the GitHub CLI (gh) when available.
+---
+
+# Release Notes
+
+## Purpose
+
+Turn the history since the last release into clear, user-facing release notes.
+
+## When to Use
+
+- The user is preparing a release or a changelog entry.
+- The user asks what changed since a tag, date, or commit.
+
+Do not use this skill to create tags or publish releases.
+
+## Prerequisites
+
+- A Git repository with at least one previous tag.
+- Optional: the GitHub CLI (`gh`), authenticated, to read pull request titles.
+
+## Instructions
+
+1. Find the latest tag with `git describe --tags --abbrev=0`. If there is none, ask the user which commit to start from.
+2. List the changes with `git log <tag>..HEAD --oneline --no-merges`.
+3. If `gh` is available, read merged pull request titles for richer descriptions.
+4. Group changes into Features, Fixes, and Other, following [the style guide](references/style-guide.md).
+5. Fill in [the template](assets/template.md) and show the draft to the user.
+6. Do not commit, tag, or publish anything unless the user asks.
+
+## Examples
+
+**User:** "Write release notes for everything since v1.4.0."
+
+**Agent:** Runs `git log v1.4.0..HEAD --oneline --no-merges`, groups the 23 commits, and presents a draft under "Features", "Fixes", and "Other" for review.
+````
+
+## Validating and testing
+
+Run both commands from the repository root before you open a Pull Request:
+
+```bash
+python3 scripts/validate-skills.py          # validates every skill in skills/
+python3 -m unittest discover -s tests        # runs the validator and installer tests
+```
+
+The validator checks that:
+
+- every skill directory contains `SKILL.md` (exact spelling),
+- the frontmatter exists and is valid YAML,
+- `name` and `description` are present and well-formed,
+- names are lowercase kebab-case, unique, and match their directory,
+- relative links point to files that exist inside the skill,
+- the skill contains no symbolic links and has instructions after the frontmatter.
+
+Errors name the file and, where possible, the line, plus a hint on how to fix it.
+
+### Test the skill with an agent
+
+Validation proves the format is right, not that the skill is useful. Install it into a scratch project and try it with at least one agent:
+
+```bash
+mkdir -p /tmp/skill-playground
+bash scripts/install.sh --skill <skill-name> --agent claude-code --project /tmp/skill-playground --dry-run
+bash scripts/install.sh --skill <skill-name> --agent claude-code --project /tmp/skill-playground
+```
+
+Then open the agent in that project, check that the skill is discovered, and run a realistic request. Mention which agents you tested in your Pull Request.
+
+## Pull Request workflow
+
+1. Create a branch: `git checkout -b add-release-notes-skill`.
+2. Commit your changes with a clear message, for example `Add release-notes skill`.
+3. Push to your fork and open a Pull Request against `main`.
+4. Fill in the Pull Request template checklist.
+5. Wait for CI. The **Validate skills** workflow runs the validator and the full test suite on Linux and macOS. If it fails, open the failed job; validation errors are also shown inline on the changed files.
+6. Respond to review feedback by pushing more commits to the same branch.
+7. A maintainer merges the Pull Request once CI passes and the review is approved.
+
+Keep Pull Requests focused: one skill, or one improvement, per Pull Request.
+
+## Review criteria
+
+Maintainers look at:
+
+- **Purpose:** Does the skill solve a real, recurring problem? Is it distinct from existing skills?
+- **Description:** Will an agent pick it at the right time, and not at the wrong time?
+- **Instructions:** Are the steps clear, actionable, and verifiable? Are edge cases covered?
+- **Safety:** Are destructive actions confirmed with the user? Do scripts do only what is documented?
+- **Portability:** Does it avoid unnecessary agent- or platform-specific assumptions?
+- **Size:** Is `SKILL.md` focused, with detail moved into `references/`?
+- **Prerequisites:** Are required tools and access stated honestly?
+- **Licensing:** Is all included material original or properly licensed and attributed?
+
+### Common anti-patterns
+
+- Vague descriptions such as "Helps with Git".
+- Giant `SKILL.md` files that paste entire manuals into the agent's context.
+- Instructions that only work in the author's environment (hard-coded paths, usernames, or URLs).
+- Scripts that download and run remote code, need `sudo`, or change global configuration.
+- Silent destructive steps: `git push --force`, `rm -rf`, or dropping data without asking.
+- Links to files outside the skill directory.
+- Copying third-party content without permission or attribution.
+
+## Security requirements
+
+All skills must follow the expectations in [SECURITY.md](SECURITY.md). In particular:
+
+- No secrets, tokens, credentials, or personal data, ever.
+- No obfuscated code, encoded payloads, or hidden network activity.
+- No downloading and executing remote code at run time.
+- Destructive operations must be explicit and confirmed with the user.
+
+Pull Requests that violate these rules will be closed. Report suspected vulnerabilities privately, as described in [SECURITY.md](SECURITY.md), not in public issues.
+
+## Licensing and attribution
+
+- vibe.md is released under the [MIT License](LICENSE). By contributing, you agree that your contribution is licensed under the MIT License, unless the skill states a different license in its `license` field.
+- You must have the right to submit everything you contribute.
+- Third-party material (code, text, templates) must have a license that allows redistribution and must keep its copyright notice. Include the original license file inside the skill directory and set the `license` field accordingly, for example `license: Apache-2.0. See LICENSE.txt`.
+- Credit the original authors in `SKILL.md` or in `metadata`.
+- Do not include material whose license you are unsure about. Ask in the Pull Request.
+
+## Changing the tooling
+
+Improvements to the installer, validator, tests, or CI are welcome. Please:
+
+- Keep the tooling generic. Never add logic for a specific skill.
+- Keep the installer dependency-free and compatible with bash 3.2.
+- Add or update tests in `tests/` for every behavior change, using temporary directories. Tests must never write to a real agent configuration or require network access (network tests go behind `VIBE_MD_INTEGRATION=1`).
+- Run `shellcheck scripts/install.sh` if you change the installer.
+
+### Adding support for a new agent
+
+Agent destinations are defined in one place, at the top of `scripts/install.sh`:
+
+1. Add the agent id to `SUPPORTED_AGENTS`.
+2. Add a case to `agent_skills_dir`, `agent_label`, and `agent_next_steps`.
+3. Add the agent to `AGENT_DIRS` in `tests/test_installer.py`.
+4. Document it in the "Supported coding agents" section of the README, with a link to the agent's official documentation.
+
+Only add agents whose skill locations are documented officially.
+
+## Reporting bugs and proposing skills
+
+- **Bugs:** open a [bug report](https://github.com/vibe-md/vibe.md/issues/new?template=bug_report.yml) with the command you ran, the full output, and your environment.
+- **Feature ideas:** open a [feature request](https://github.com/vibe-md/vibe.md/issues/new?template=feature_request.yml).
+- **Skill ideas:** open a [new skill proposal](https://github.com/vibe-md/vibe.md/issues/new?template=skill_proposal.yml) if you want feedback first, or go straight to a Pull Request.
+- **Security issues:** report privately, as described in [SECURITY.md](SECURITY.md).
+
+Thank you for contributing!

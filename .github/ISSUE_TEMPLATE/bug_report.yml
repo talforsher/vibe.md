@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the installer, validator, CI, documentation, or a skill does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. **Do not report security vulnerabilities here**; use [private vulnerability reporting](https://github.com/vibe-md/vibe.md/security/advisories/new) instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installer (scripts/install.sh)
+        - Validator (scripts/validate-skills.py)
+        - A specific skill
+        - CI / GitHub Actions
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: skill
+    attributes:
+      label: Skill name
+      description: If the problem is in a specific skill, which one?
+      placeholder: e.g. git-workflow
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact command you ran and the full output.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Clone the repository
+        2. Run `bash scripts/install.sh ...`
+        3. See the error
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, shell, and the coding agent you use (with version, if relevant).
+      placeholder: macOS 15, bash 3.2, Claude Code 2.x
+    validations:
+      required: true

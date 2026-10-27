@@ -1,0 +1,2 @@
+# Needed only to validate skills and run the test suite. The installer has no dependencies.
+PyYAML==6.0.3

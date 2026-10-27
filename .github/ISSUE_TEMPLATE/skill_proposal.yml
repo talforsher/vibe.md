@@ -1,0 +1,66 @@
+name: New skill proposal
+description: Propose a new skill for the collection, or discuss one before you build it.
+labels: ["skill proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You do not need approval to open a Pull Request with a new skill. A proposal is useful when you want feedback first or are looking for someone to build it.
+  - type: input
+    id: name
+    attributes:
+      label: Proposed skill name
+      description: Lowercase kebab-case, 64 characters at most.
+      placeholder: e.g. release-notes
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What does the skill do, and when should an agent use it?
+      description: This becomes the skill's `description`, so make it specific.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does it solve?
+      description: Describe the workflow that is painful or unreliable without it.
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: Bundled resources
+      description: Will it include scripts, references, or assets? What do the scripts do?
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Tools, accounts, or network access the skill needs (for example git, gh, Docker).
+  - type: checkboxes
+    id: agents
+    attributes:
+      label: Agents you expect it to work with
+      options:
+        - label: Claude Code
+        - label: Codex
+        - label: Cursor
+        - label: Gemini CLI
+        - label: GitHub Copilot
+  - type: dropdown
+    id: builder
+    attributes:
+      label: Who will build it?
+      options:
+        - I will open a Pull Request
+        - Looking for a contributor
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Licensing
+      options:
+        - label: Any third-party material I plan to include has a license that allows redistribution, and I will credit it.
+          required: true

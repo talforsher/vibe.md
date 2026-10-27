@@ -1,0 +1,75 @@
+name: Validate skills
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only token. Pull requests from forks never receive repository secrets
+# with the pull_request trigger, and this workflow uses none.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Validate and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS covers the installer on the system bash 3.2 and BSD tools.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Validate skills
+        run: python scripts/validate-skills.py
+
+      - name: Check installer syntax
+        run: bash -n scripts/install.sh
+
+      - name: Lint installer with ShellCheck
+        if: runner.os == 'Linux'
+        run: shellcheck scripts/install.sh
+
+      - name: Run validator tests
+        run: python -m unittest tests.test_validator -v
+
+      - name: Run installer tests
+        run: python -m unittest tests.test_installer -v
+
+  # Single, stable check to require in branch protection, independent of the matrix.
+  ci-passed:
+    name: CI passed
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: |
+          if [ "$RESULT" != "success" ]; then
+            echo "Validation or tests failed. Open the 'Validate and test' jobs above for details."
+            exit 1
+          fi

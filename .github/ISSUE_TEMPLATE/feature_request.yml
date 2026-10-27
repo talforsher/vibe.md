@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement to the installer, validator, CI, or documentation.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to propose a new **skill**? Use the "New skill proposal" template instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work? Commands, options, or examples help.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this has not been requested yet.
+          required: true
+        - label: I would be willing to open a Pull Request for this.

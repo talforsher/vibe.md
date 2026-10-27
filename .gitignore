@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Skills installed into this repository while testing the installer.
+# The canonical copies live in skills/.
+/.claude/skills/
+/.agents/skills/
+/.cursor/skills/
+/.gemini/skills/
+/.github/skills/
