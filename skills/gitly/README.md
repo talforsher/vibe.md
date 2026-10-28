@@ -62,6 +62,44 @@ groups use it, and keep project preferences if you want to retain them.
 
 ## Source
 
+Gitly is maintained here as part of vibe.md. Installation, ZIP generation, tests,
+and documentation use this repository; the former Gitly repository is retained
+only as attribution. No sibling Gitly checkout is required.
+
+The complete operating contract is maintained in [GITLY.md](GITLY.md). Each skill
+bundles an identical copy for independent installation. Tests reject drift.
+After editing the contract, refresh those copies:
+
+```bash
+for skill in skills/gitly/gitly-*/; do
+  cp skills/gitly/GITLY.md "${skill}references/GITLY.md"
+done
+```
+
+See [Architecture](ARCHITECTURE.md), [Compatibility](COMPATIBILITY.md),
+[Security](SECURITY.md), and [Troubleshooting](TROUBLESHOOTING.md).
+
+## Downloads and frontend
+
+Generate the website's ZIPs and source-version manifest from this checkout:
+
+```bash
+python3 scripts/build-packages.py --group gitly --output-dir /path/to/vibe-website/public/downloads
+```
+
+This generates a package for each of the five supported agents. Each archive
+contains the router, twelve complete Gitly skills, a file-hash inventory, and an
+agent-specific `INSTALL.md`. End users download the ZIP, leave it in Downloads,
+open their project in the matching agent, and ask it to read `gitly-install/INSTALL.md`
+and install. They do not need Python, Node.js, or a cloned source repository.
+
+The frontend lives in the separate vibe.md website repository, with Gitly at
+`/skills/gitly`. Its terminal commands and ZIP downloads use the same source
+commit from the generated manifest. Commit and push skill changes before building
+the release packages so that source commit is available for terminal downloads.
+
+## Provenance
+
 Adapted from [NirGeron98/Gitly](https://github.com/NirGeron98/Gitly), commit
 `fe33bbae13552ed8973c6949b1d21e1ce2b746c9`. Workflow instructions are preserved,
 with their shared-contract paths changed to local relative links and attribution,

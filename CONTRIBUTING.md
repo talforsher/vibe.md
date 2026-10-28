@@ -99,7 +99,7 @@ Key rules:
 
 1. **Check for overlap.** Search the [existing skills](skills/) and [open Pull Requests](https://github.com/vibe-md/vibe.md/pulls). Improving an existing skill is often better than adding a near-duplicate.
 2. **Pick a name.** Lowercase letters, digits, and single hyphens, up to 64 characters, for example `release-notes` or `pr-review`. Prefer clear, descriptive names over clever ones.
-3. **Create the directory** `skills/<skill-name>/` or `skills/<group>/<skill-name>/` and add `SKILL.md`. A group may also contain `README.md` and `LICENSE`.
+3. **Create the directory** `skills/<skill-name>/` or `skills/<group>/<skill-name>/` and add `SKILL.md`. A group may also contain Markdown documentation and `LICENSE`.
 4. **Add optional resources** (`scripts/`, `references/`, `assets/`) only if the skill needs them.
 5. **Validate and test** as described below.
 6. **Open a Pull Request.**

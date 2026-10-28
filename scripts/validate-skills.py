@@ -323,8 +323,8 @@ def validate_collection(skills_dir):
                     continue
                 if child.is_dir():
                     children.append(child)
-                elif child.name not in {"README.md", "LICENSE"}:
-                    report.error(display_path(child), "unexpected file in a skill group; use README.md or LICENSE.")
+                elif child.suffix != ".md" and child.name != "LICENSE":
+                    report.error(display_path(child), "unexpected file in a skill group; use Markdown documentation or LICENSE.")
             if not children:
                 report.error(display_path(entry), "a skill group must contain at least one skill directory.")
             skill_dirs.extend(children)
