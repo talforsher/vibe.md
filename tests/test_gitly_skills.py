@@ -23,8 +23,10 @@ class SkillManifestTests(unittest.TestCase):
             text = (SKILL_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
             self.assertRegex(text, rf"\A---\nname: {re.escape(name)}\ndescription: .+\n")
             self.assertNotIn("TODO", text)
-            self.assertIn("references/GITLY.md", text)
-            self.assertEqual((SKILL_ROOT / name / "references/GITLY.md").read_bytes(), (SKILL_ROOT / "GITLY.md").read_bytes())
+            self.assertIn("(../GITLY.md)", text)
+            self.assertEqual({p.name for p in (SKILL_ROOT / name).iterdir()}, {"SKILL.md"})
+            self.assertTrue((SKILL_ROOT / "GITLY.md").is_file())
+            self.assertTrue((SKILL_ROOT / "LICENSE").is_file())
             self.assertTrue(any("\u0590" <= char <= "\u05ff" for char in text), name)
 
     def test_skills_are_independent_of_removed_engine(self):

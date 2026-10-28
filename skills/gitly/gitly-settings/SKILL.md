@@ -13,7 +13,7 @@ metadata:
 
 # Gitly settings
 
-Read [the shared operating contract](references/GITLY.md) first and follow its approval contract and configuration schema.
+Read [the shared operating contract](../GITLY.md) first and follow its approval contract and configuration schema.
 
 ## Responsibility and triggers
 

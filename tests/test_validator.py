@@ -237,6 +237,40 @@ class GeneratedCaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("group names must use lowercase kebab-case", result.stdout)
 
+    def test_group_contract_and_license_links_are_valid_but_missing_documents_fail(self):
+        skill = self.write_skill("versions/good", frontmatter="name: good\ndescription: A grouped workflow used for validation tests.\n",
+                                 body="Read [rules](../CONTRACT.md) and [license](../LICENSE).\n")
+        (skill.parent / "CONTRACT.md").write_text("Shared rules.\n")
+        (skill.parent / "LICENSE").write_text("License.\n")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        (skill.parent / "CONTRACT.md").unlink()
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("does not exist", result.stdout)
+
+    def test_shared_documents_cannot_be_symlinks_or_collide_with_skill_names(self):
+        skill = self.write_skill("versions/good", frontmatter="name: good\ndescription: A grouped workflow used for validation tests.\n",
+                                 body="Read [rules](../CONTRACT.md).\n")
+        os.symlink("/etc/hosts", skill.parent / "CONTRACT.md")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("symbolic links", result.stdout)
+        (skill.parent / "CONTRACT.md").unlink()
+        (skill.parent / "CONTRACT.md").write_text("Rules.\n")
+        self.write_skill("other/versions", frontmatter="name: versions\ndescription: A grouped workflow used for validation tests.\n")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("conflicts with a group resources directory", result.stdout)
+
+    def test_common_router_stays_self_contained(self):
+        skill = self.write_skill("_shared/router", frontmatter="name: router\ndescription: A common router used for validation tests.\n",
+                                 body="Read [rules](../CONTRACT.md).\n")
+        (skill.parent / "CONTRACT.md").write_text("Rules.\n")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("points outside the skill directory", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

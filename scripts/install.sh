@@ -81,8 +81,10 @@ agent_next_steps() {
 # ---------------------------------------------------------------------------
 DOWNLOAD_DIR=""
 STAGE_DIR=""
+PREPARE_DIR=""
 
 cleanup() {
+  if [ -n "$PREPARE_DIR" ] && [ -d "$PREPARE_DIR" ]; then rm -rf "$PREPARE_DIR"; fi
   if [ -n "$STAGE_DIR" ] && [ -d "$STAGE_DIR" ]; then rm -rf "$STAGE_DIR"; fi
   if [ -n "$DOWNLOAD_DIR" ] && [ -d "$DOWNLOAD_DIR" ]; then rm -rf "$DOWNLOAD_DIR"; fi
 }
@@ -310,6 +312,64 @@ select_skills() {
   done
 }
 
+# Keep skills directly discoverable while installing group documents only once.
+# Source links ../FILE become ../<group>/FILE in the flat installed layout.
+prepare_selection() {
+  local source name group_dir group file candidate original
+  local prepared=()
+  ENTRY_SKILL="$(basename "${SELECTED[0]}")"
+  PREPARE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vibe-md-prepare.XXXXXX")" ||
+    die "could not create a temporary directory for the installation layout."
+  for source in "${SELECTED[@]}"; do
+    name="$(basename "$source")"
+    group_dir="$(dirname "$source")"
+    group="$(basename "$group_dir")"
+    if [ -n "$(find "$source" -type l 2>/dev/null | head -n 1)" ]; then
+      die "skill '$name' contains symbolic links and cannot be installed safely."
+    fi
+    cp -R "$source" "$PREPARE_DIR/$name" || die "could not prepare skill '$name'. Nothing was installed."
+    prepared+=("$PREPARE_DIR/$name")
+    if [ "$group_dir" = "$SKILLS_DIR/_shared" ]; then
+      ENTRY_SKILL="$name"
+    elif [ "$group_dir" != "$SKILLS_DIR" ]; then
+      is_valid_skill_name "$group" || die "invalid group name '$group'."
+      if [ ! -d "$PREPARE_DIR/$group" ] || [ -f "$PREPARE_DIR/$group/SKILL.md" ]; then
+        for file in "$group_dir"/*.md "$group_dir/LICENSE"; do
+          [ ! -L "$file" ] || die "group '$group' contains symbolic links and cannot be installed safely."
+          [ -f "$file" ] || continue
+          if [ -f "$PREPARE_DIR/$group/SKILL.md" ]; then
+            die "group resources '$group' conflict with a skill of the same name."
+          fi
+          if [ ! -d "$PREPARE_DIR/$group" ]; then
+            for candidate in "${SOURCES[@]}"; do
+              [ "$(basename "$candidate")" != "$group" ] ||
+                die "group resources '$group' conflict with a skill of the same name."
+            done
+            mkdir "$PREPARE_DIR/$group"
+          fi
+          cp "$file" "$PREPARE_DIR/$group/" || die "could not prepare group resources for '$group'."
+        done
+      fi
+      original="$PREPARE_DIR/$name/SKILL.md"
+      sed -E "s|(\]\([[:blank:]]*<?)\.\./|\1../$group/|g" "$original" > "$PREPARE_DIR/skill.tmp" ||
+        die "could not resolve resource links for '$name'."
+      cp "$PREPARE_DIR/skill.tmp" "$original"
+    fi
+  done
+  rm -f "$PREPARE_DIR/skill.tmp"
+  # A group is selected at most once; include its common documents as one unit.
+  for source in "${SELECTED[@]}"; do
+    group_dir="$(dirname "$source")"
+    group="$(basename "$group_dir")"
+    if [ "$group_dir" != "$SKILLS_DIR" ] && [ "$group_dir" != "$SKILLS_DIR/_shared" ] &&
+       [ -d "$PREPARE_DIR/$group" ]; then
+      prepared+=("$PREPARE_DIR/$group")
+      break
+    fi
+  done
+  SELECTED=("${prepared[@]}")
+}
+
 # Fail if any existing part of the destination resolves outside the project,
 # for example because .claude is a symlink to another directory.
 check_destination_inside_project() {
@@ -391,7 +451,7 @@ install_skills() {
     for ((i=0; i<${#SELECTED[@]}; i++)); do
       source="${SELECTED[$i]}"
       name="$(basename "$source")"
-      printf '  Skill: %s\n  Agent: %s\n  Destination: %s\n  Action: %s\n' \
+      printf '  Directory: %s\n  Agent: %s\n  Destination: %s\n  Action: %s\n' \
         "$name" "$label" "$skills_root/$name" "${actions[$i]}"
       (cd "$source" && find . -type f | sed 's|^\./|    |' | LC_ALL=C sort)
     done
@@ -426,11 +486,10 @@ install_skills() {
     done
   fi
 
-  entry="$(basename "${SELECTED[0]}")"
+  entry="$ENTRY_SKILL"
   for ((i=0; i<${#SELECTED[@]}; i++)); do
     source="${SELECTED[$i]}"
     name="$(basename "$source")"
-    if [ "$(dirname "$source")" = "$SKILLS_DIR/_shared" ]; then entry="$name"; fi
     case "${actions[$i]}" in
       skip) echo "'$name' is already installed for $label and up to date: $skills_root/$name" ;;
       replace) echo "Replaced '$name' for $label: $skills_root/$name" ;;
@@ -519,6 +578,7 @@ main() {
   resolve_skills_dir
   discover_skills
   select_skills
+  prepare_selection
   install_skills
 }
 

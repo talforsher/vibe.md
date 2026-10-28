@@ -368,6 +368,110 @@ class GroupInstallTests(InstallerTestCase):
             "--project", str(self.project), *extra,
         )
 
+    def add_group_documents(self, group="versions", names=("save", "status")):
+        (self.skills / group / "CONTRACT.md").write_text(group + " shared operating rules.\n")
+        (self.skills / group / "LICENSE").write_text(group + " license.\n")
+        for name in names:
+            path = self.skills / group / name / "SKILL.md"
+            path.write_text(path.read_text().replace("references/contract.md", "../CONTRACT.md") + '\nRead [rules]( <../CONTRACT.md> "Shared rules").\n')
+            shutil.rmtree(path.parent / "references")
+
+    def test_upgrading_old_gitly_layout_preserves_preferences_and_unrelated_work(self):
+        source = REPO_ROOT / "skills/gitly"
+        dest = self.project / ".agents/skills/gitly-status"
+        (dest / "references").mkdir(parents=True)
+        (dest / "SKILL.md").write_text((source / "gitly-status/SKILL.md").read_text().replace("(../GITLY.md)", "(references/GITLY.md)"))
+        shutil.copy(source / "GITLY.md", dest / "references/GITLY.md")
+        shutil.copy(source / "LICENSE", dest / "LICENSE")
+        preferences = self.project / ".gitly/config.md"
+        preferences.parent.mkdir()
+        preferences.write_text("language: he\nhistory_length: 10\n")
+        (self.project / "app.txt").write_text("My current work.\n")
+        before = tree(self.project)
+        result = self.install("gitly-status", "codex", skills_dir=REPO_ROOT / "skills")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(tree(self.project), before)
+        result = self.install("gitly-status", "codex", "--force", skills_dir=REPO_ROOT / "skills")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual({p.name for p in dest.iterdir()}, {"SKILL.md"})
+        self.assertEqual((dest.parent / "gitly/GITLY.md").read_bytes(), (source / "GITLY.md").read_bytes())
+        self.assertEqual(preferences.read_text(), "language: he\nhistory_length: 10\n")
+        self.assertEqual((self.project / "app.txt").read_text(), "My current work.\n")
+
+    def test_single_member_installs_one_contract_and_license_for_every_agent(self):
+        self.add_group_documents()
+        for agent, directory in AGENT_DIRS.items():
+            with self.subTest(agent=agent):
+                result = self.install("save", agent, skills_dir=self.skills)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                dest = self.project / directory
+                self.assertEqual({p.name for p in dest.iterdir()}, {"save", "router", "versions"})
+                self.assertEqual(tree(dest / "versions"), {
+                    "CONTRACT.md": b"versions shared operating rules.\n", "LICENSE": b"versions license.\n",
+                })
+                self.assertIn("(../versions/CONTRACT.md)", (dest / "save/SKILL.md").read_text())
+                self.assertIn('( <../versions/CONTRACT.md> "Shared rules")', (dest / "save/SKILL.md").read_text())
+                self.assertEqual(sum(p.name == "CONTRACT.md" for p in dest.rglob("*.md")), 1)
+                before = {p: p.stat().st_mtime_ns for p in dest.rglob("*") if p.is_file()}
+                result = self.install("save", agent, skills_dir=self.skills)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(before, {p: p.stat().st_mtime_ns for p in dest.rglob("*") if p.is_file()})
+
+    def test_second_group_keeps_its_documents_separate_and_conflicts_stop_all_writes(self):
+        self.add_group_documents()
+        self.add_group_documents("docs", ("write-docs",))
+        self.assertEqual(self.install_group().returncode, 0)
+        before = tree(self.project)
+        result = self.install_group("docs")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        after = tree(self.project)
+        for path, content in before.items():
+            self.assertEqual(after[path], content)
+        self.assertEqual((self.project / ".agents/skills/docs/CONTRACT.md").read_text(), "docs shared operating rules.\n")
+        (self.project / ".agents/skills/docs/LICENSE").write_text("My custom license.\n")
+        before = tree(self.project)
+        result = self.install_group("docs")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Nothing was changed", result.stderr)
+        self.assertEqual(tree(self.project), before)
+
+    def test_failure_installing_group_documents_restores_updated_skills_and_documents(self):
+        self.add_group_documents()
+        self.assertEqual(self.install_group().returncode, 0)
+        before = tree(self.project)
+        path = self.skills / "versions/save/SKILL.md"
+        path.write_text(path.read_text() + "\nNew workflow guidance.\n")
+        (self.skills / "versions/CONTRACT.md").write_text("Updated rules.\n")
+        fake_bin = self.root / "bin"
+        fake_bin.mkdir()
+        wrapper = fake_bin / "mv"
+        wrapper.write_text('#!/bin/sh\ncase "$1" in */new/versions) exit 1;; esac\nexec "$VIBE_TEST_REAL_MV" "$@"\n')
+        wrapper.chmod(0o755)
+        result = self.run_installer(
+            "--group", "versions", "--agent", "codex", "--force", "--skills-dir", str(self.skills),
+            "--project", str(self.project), env_extra={
+                "PATH": str(fake_bin) + os.pathsep + os.environ["PATH"], "VIBE_TEST_REAL_MV": shutil.which("mv"),
+            },
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(tree(self.project), before)
+
+    def test_symlinked_group_document_and_resource_name_collision_are_refused(self):
+        self.add_group_documents()
+        (self.skills / "versions/CONTRACT.md").unlink()
+        os.symlink("/etc/hosts", self.skills / "versions/CONTRACT.md")
+        result = self.install_group()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("symbolic links", result.stderr)
+        self.assertEqual(snapshot(self.project), set())
+        (self.skills / "versions/CONTRACT.md").unlink()
+        (self.skills / "versions/CONTRACT.md").write_text("Rules.\n")
+        shutil.copytree(self.skills / "_shared/router", self.skills / "_shared/versions")
+        result = self.install_group()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("conflict", result.stderr)
+        self.assertEqual(snapshot(self.project), set())
+
     def test_group_and_shared_skills_are_flat_and_complete_for_every_agent(self):
         for agent, directory in AGENT_DIRS.items():
             with self.subTest(agent=agent):

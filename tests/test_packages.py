@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import shutil
 import tempfile
 import unittest
@@ -41,16 +42,29 @@ class PackageTests(unittest.TestCase):
                         data = archive.read("gitly-install/" + name)
                         self.assertEqual(hashlib.sha256(data).hexdigest(), digest)
                         relative = Path(name).relative_to("skills")
-                        source = ROOT / "skills" / ("_shared" if relative.parts[0] == "vibe" else "gitly") / relative
-                        self.assertEqual(data, source.read_bytes())
+                        if relative.parts[0] == "gitly":
+                            source = ROOT / "skills" / relative
+                        else:
+                            source = ROOT / "skills" / ("_shared" if relative.parts[0] == "vibe" else "gitly") / relative
+                        expected = source.read_bytes()
+                        if relative.name == "SKILL.md" and relative.parts[0] != "vibe":
+                            expected = expected.replace(b"](../", b"](../gitly/")
+                        self.assertEqual(data, expected)
                         target = project / destination / relative
                         target.parent.mkdir(parents=True, exist_ok=True)
                         target.write_bytes(data)
                     self.assertEqual(len(list((project / destination).glob("*/SKILL.md"))), 13)
-                    for name in manifest["skills"]:
-                        if name != "vibe":
-                            self.assertEqual((project / destination / name / "references/GITLY.md").read_bytes(),
-                                             (ROOT / "skills/gitly/GITLY.md").read_bytes())
+                    self.assertEqual((project / destination / "gitly/GITLY.md").read_bytes(),
+                                     (ROOT / "skills/gitly/GITLY.md").read_bytes())
+                    self.assertEqual(len(list((project / destination).rglob("GITLY.md"))), 1)
+                    installed = {p.relative_to(project / destination).as_posix(): p.read_bytes()
+                                 for p in (project / destination).rglob("*") if p.is_file()}
+                    result = subprocess.run(["/bin/bash", str(ROOT / "scripts/install.sh"), "--group", "gitly",
+                                             "--agent", agent, "--project", str(project)], capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("up to date", result.stdout)
+                    self.assertEqual(installed, {p.relative_to(project / destination).as_posix(): p.read_bytes()
+                                                for p in (project / destination).rglob("*") if p.is_file()})
                     self.assertFalse((project / ".gitly").exists())
 
     def test_identical_inputs_produce_identical_archives_and_manifest(self):
@@ -69,11 +83,17 @@ class PackageTests(unittest.TestCase):
             script = skills / "docs/basic-skill/run.sh"
             script.write_text("#!/bin/sh\nexit 0\n")
             script.chmod(0o755)
+            (skills / "docs/CONTRACT.md").write_text("Shared rules.\n")
+            (skills / "docs/LICENSE").write_text("Shared license.\n")
+            entry = skills / "docs/basic-skill/SKILL.md"
+            entry.write_text(entry.read_text() + '\nRead [rules]( <../CONTRACT.md> "Rules").\n')
             output = base / "downloads"
             manifest = builder.build_packages(skills, "docs", output, "test-ref")
             self.assertEqual(manifest["skills"], ["basic-skill"])
             with zipfile.ZipFile(output / "docs-codex.zip") as archive:
                 self.assertEqual(archive.getinfo("docs-install/skills/basic-skill/run.sh").external_attr >> 16 & 0o777, 0o755)
+                self.assertIn(b'( <../docs/CONTRACT.md> "Rules")', archive.read("docs-install/skills/basic-skill/SKILL.md"))
+                self.assertEqual(archive.read("docs-install/skills/docs/CONTRACT.md"), b"Shared rules.\n")
             os.symlink("/etc/hosts", skills / "docs/basic-skill/hosts")
             with self.assertRaisesRegex(ValueError, "symbolic links"):
                 builder.build_packages(skills, "docs", output, "test-ref")

@@ -14,8 +14,8 @@ bash scripts/install.sh --group gitly --agent codex --project /path/to/project
 
 Use `claude-code`, `cursor`, `gemini`, or `copilot` for another agent. Installation
 places the shared `vibe` router and all twelve `gitly-*` skill directories directly
-in the chosen agent's skills directory. Each has its own `SKILL.md`, local contract,
-and license. No project-level `AGENTS.md` or `.gitly/GITLY.md` is needed.
+in the chosen agent's skills directory. Each workflow has its own `SKILL.md`. The operating contract, license, and
+group documentation are installed once in the adjacent `gitly/` directory. No project-level `AGENTS.md` or `.gitly/GITLY.md` is needed.
 
 After the reload steps printed by the installer, say "Set up Gitly", "Save my
 progress", or "Is everything backed up?" You can also select an individual skill
@@ -57,7 +57,7 @@ Preferences stay in the project's `.gitly/config.md`, if present. Missing
 preferences use defaults without creating a file. Installing skills does not
 modify project configuration or run Gitly workflows.
 
-Remove installed `gitly-*` directories to remove the group. Keep `vibe/` if other
+Remove installed `gitly-*` directories and the shared `gitly/` documents directory to remove the group. Keep `vibe/` if other
 groups use it, and keep project preferences if you want to retain them.
 
 ## Source
@@ -66,14 +66,29 @@ Gitly is maintained here as part of vibe.md. Installation, ZIP generation, tests
 and documentation use this repository; the former Gitly repository is retained
 only as attribution. No sibling Gitly checkout is required.
 
-The complete operating contract is maintained in [GITLY.md](GITLY.md). Each skill
-bundles an identical copy for independent installation. Tests reject drift.
-After editing the contract, refresh those copies:
+The complete operating contract is maintained once in [GITLY.md](GITLY.md),
+with one [LICENSE](LICENSE) for the group. Workflow source folders contain only
+`SKILL.md` and reference `../GITLY.md`. No contract or license copies are maintained
+inside the twelve workflows.
 
-```bash
-for skill in skills/gitly/gitly-*/; do
-  cp skills/gitly/GITLY.md "${skill}references/GITLY.md"
-done
+The installer keeps all workflows directly discoverable and copies group-level
+Markdown documents and `LICENSE` once into `<agent-skills>/gitly/`. It resolves
+source links such as `../GITLY.md` to `../gitly/GITLY.md` in installed workflows.
+Even `--skill gitly-status` includes these common documents and the `vibe` router.
+Do not copy a workflow source folder alone; use the installer or the prepared ZIP.
+
+For example, a full Codex installation contains:
+
+```text
+.agents/skills/
+├── vibe/SKILL.md
+├── gitly/
+│   ├── GITLY.md
+│   ├── LICENSE
+│   └── ...                 # shared documentation
+├── gitly-status/SKILL.md
+├── gitly-save/SKILL.md
+└── ...
 ```
 
 See [Architecture](ARCHITECTURE.md), [Compatibility](COMPATIBILITY.md),
@@ -88,7 +103,8 @@ python3 scripts/build-packages.py --group gitly --output-dir /path/to/vibe-websi
 ```
 
 This generates a package for each of the five supported agents. Each archive
-contains the router, twelve complete Gitly skills, a file-hash inventory, and an
+contains the router, twelve Gitly workflows, one shared documents directory, a
+file-hash inventory, and an
 agent-specific `INSTALL.md`. End users download the ZIP, leave it in Downloads,
 open their project in the matching agent, and ask it to read `gitly-install/INSTALL.md`
 and install. They do not need Python, Node.js, or a cloned source repository.
@@ -103,8 +119,8 @@ the release packages so that source commit is available for terminal downloads.
 Adapted from [NirGeron98/Gitly](https://github.com/NirGeron98/Gitly), commit
 `fe33bbae13552ed8973c6949b1d21e1ce2b746c9`. Workflow instructions are preserved,
 with their shared-contract paths changed to local relative links and attribution,
-group, and license metadata added. Every skill carries an unchanged copy of the
-shared contract, so it can also be installed independently. This contribution
+group, and license metadata added. The shared contract is unchanged and is
+automatically included when installing a group or a single workflow. This contribution
 uses vibe.md's [MIT license](LICENSE).
 
 Gitly is agent guidance, not an executable security boundary.

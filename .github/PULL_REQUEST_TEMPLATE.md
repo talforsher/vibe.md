@@ -17,7 +17,7 @@
 - [ ] `SKILL.md` has valid YAML frontmatter with `name` and `description`.
 - [ ] The skill name is unique, lowercase kebab-case, and matches its directory name.
 - [ ] The description says what the skill does **and** when an agent should use it.
-- [ ] Each skill and its resources live inside `skills/<skill-name>/` or `skills/<group>/<skill-name>/`, with local relative links.
+- [ ] Resources live inside each skill or as top-level group Markdown documents/`LICENSE`; relative links resolve after installation.
 - [ ] Prerequisites (tools, accounts, network access) are documented in `SKILL.md`.
 - [ ] No secrets, tokens, credentials, or personal data are included.
 - [ ] Bundled scripts perform no unexpected, destructive, or hidden operations, and `SKILL.md` explains what they do.

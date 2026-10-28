@@ -109,10 +109,13 @@ A skill contribution should stay inside its standalone skill or group directory.
 ### Adding a group
 
 Create `skills/<group>/<skill-name>/SKILL.md` for each workflow. Each workflow
-must carry every required resource inside its own directory so individual installs
-and direct invocation work. Reuse existing namespaces, such as `gitly-status`, and
-keep names globally unique. Put shared instructions in each skill's `references/`
-when they are required by independently installable workflows.
+may use resources inside its own directory, or top-level Markdown documents and
+`LICENSE` shared by its group. Link shared files as `../CONTRACT.md` or `../LICENSE`.
+The installer and ZIP builder include them once in `<agent-skills>/<group>/` and
+resolve those links in installed skills. Individual installation also includes
+these group resources. Keep skill names globally unique and distinct from group
+resources directory names. Links to sibling workflows or outside the group remain
+invalid.
 
 Include this metadata for the shared router, alongside the usual frontmatter:
 
@@ -188,7 +191,7 @@ Guidelines:
 - **Be actionable.** Write steps an agent can follow and a reviewer can verify. "Run `git status` and stop if the working tree is dirty" beats "make sure things are clean".
 - **Be concise.** The whole `SKILL.md` is loaded into the agent's context when the skill activates. Keep it under 500 lines (the validator warns above that) and move detail into `references/`.
 - **Be portable.** Do not assume a specific agent, operating system, or file layout unless you must. If you must, say so in `compatibility`.
-- **Use relative paths** for files inside the skill, such as `references/checklist.md`. Never reference files outside the skill directory: each skill is installed on its own.
+- **Use relative paths** for files inside the skill, such as `references/checklist.md`. Grouped skills may also link to top-level group Markdown documents or `LICENSE` using `../filename`; installation includes these dependencies automatically. Other links outside the skill are rejected.
 - **Ask before destructive actions.** Tell the agent to confirm with the user before deleting, force-pushing, publishing, or spending money.
 
 ## Optional resources
@@ -201,7 +204,7 @@ Guidelines:
 
 None of these directories is required. Other file names are allowed, but these conventions keep skills easy to review. Symbolic links are not allowed anywhere in a skill.
 
-The validator checks every relative Markdown link in `SKILL.md` (for example `[checklist](references/checklist.md)`): the target must exist and must be inside the skill directory. Links inside code blocks and inline code are not checked.
+The validator checks every relative Markdown link in `SKILL.md` (for example `[checklist](references/checklist.md)`): the target must exist inside the skill, or be a top-level document or `LICENSE` in its group. Links inside code blocks and inline code are not checked.
 
 ## A complete example
 
@@ -274,7 +277,7 @@ The validator checks that:
 - the frontmatter exists and is valid YAML,
 - `name` and `description` are present and well-formed,
 - names are lowercase kebab-case, unique, and match their directory,
-- relative links point to files that exist inside the skill,
+- relative links resolve to local files or the permitted shared group documents,
 - the skill contains no symbolic links and has instructions after the frontmatter.
 
 Errors name the file and, where possible, the line, plus a hint on how to fix it.
@@ -341,7 +344,7 @@ Pull Requests that violate these rules will be closed. Report suspected vulnerab
 
 - vibe.md is released under the [MIT License](LICENSE). By contributing, you agree that your contribution is licensed under the MIT License, unless the skill states a different license in its `license` field.
 - You must have the right to submit everything you contribute.
-- Third-party material (code, text, templates) must have a license that allows redistribution and must keep its copyright notice. Include the original license file inside the skill directory and set the `license` field accordingly, for example `license: Apache-2.0. See LICENSE.txt`.
+- Third-party material (code, text, templates) must have a license that allows redistribution and must keep its copyright notice. Include the original license file inside the skill directory or as the group-level `LICENSE` and set the `license` field accordingly, for example `license: Apache-2.0. See LICENSE.txt`.
 - Credit the original authors in `SKILL.md` or in `metadata`.
 - Do not include material whose license you are unsure about. Ask in the Pull Request.
 

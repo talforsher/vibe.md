@@ -46,8 +46,20 @@ def build_packages(skills_dir, group, output_dir, ref):
                 raise ValueError("symbolic links are not allowed: " + str(path))
             if path.is_file():
                 name = "skills/" + skill.name + "/" + path.relative_to(skill).as_posix()
-                payload[name] = path.read_bytes()
+                data = path.read_bytes()
+                if path == entry and skill.parent == group_dir:
+                    data = re.sub(rb"(\]\([ \t]*<?)\.\./", lambda match: match[1] + ("../" + group + "/").encode(), data)
+                payload[name] = data
                 modes[name] = 0o755 if path.stat().st_mode & 0o111 else 0o644
+
+    resources = [path for path in sorted(group_dir.iterdir()) if not path.name.startswith(".")
+                 and (path.suffix == ".md" or path.name == "LICENSE")]
+    if resources and group in names:
+        raise ValueError("group resources conflict with a skill of the same name: " + group)
+    for path in resources:
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("group resources must be regular files, without symbolic links: " + str(path))
+        payload["skills/" + group + "/" + path.name] = path.read_bytes()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     root = group + "-install"
@@ -69,15 +81,16 @@ The user's request to install this package authorizes copying missing files.
 1. Read MANIFEST.json beside this file. Verify that the complete package contains
    exactly its listed skills and files, with matching SHA-256 hashes and no
    symbolic links. Required skills: {', '.join(sorted(names))}.
-2. Inspect ALL destination directories at `{destination}/<skill-name>/` first.
+2. Inspect ALL destination directories at `{destination}/<directory>/` first,
+   including the group resources directory `{destination}/{group}/` when present.
    Classify each complete directory as missing, byte-for-byte identical, or
    conflicting, including any extra destination files. If any directory conflicts,
    stop before writing anything and ask the user how to handle it. Preserve all
    unrelated skills and project files. Never overwrite a conflicting directory.
 3. When every destination is missing or identical, create missing directories and
-   copy the complete contents of each `skills/<skill-name>/` into its destination.
+   copy the complete contents of each directory under `skills/` into its destination.
    Do not ask for another confirmation and do not rewrite identical directories.
-   This includes the shared vibe router and every workflow's local resources.
+   This includes the shared vibe router and the group's shared documents and license.
 4. Verify every installed file against MANIFEST.json. Do not run bundled scripts,
    change Git history, authenticate, or edit AGENTS.md, CLAUDE.md, or preferences.
 5. Report the installed skills. Remove only temporary extraction files you created;

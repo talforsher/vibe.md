@@ -50,7 +50,8 @@ The Claude Code check used a disposable project and read/question tools. It veri
 ## vibe.md installation
 
 The universal installer and package builder support `claude-code`, `codex`,
-`cursor`, `gemini`, and `copilot`. Every destination is flat: thirteen standalone
-skill directories, including `vibe`. ZIPs contain the same complete directories.
+`cursor`, `gemini`, and `copilot`. Every destination is flat: thirteen directly discoverable
+skill directories, including `vibe`, plus one `gitly/` documents directory. ZIPs
+contain the same prepared layout.
 The three original hosts retain their skill names and workflows. Gemini and
 Copilot have installation coverage, not live Gitly workflow certification.

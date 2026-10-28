@@ -13,7 +13,7 @@ metadata:
 
 # Gitly check
 
-Read [the shared operating contract](references/GITLY.md) first and follow its approval, evidence, and language rules.
+Read [the shared operating contract](../GITLY.md) first and follow its approval, evidence, and language rules.
 
 ## Responsibility and triggers
 

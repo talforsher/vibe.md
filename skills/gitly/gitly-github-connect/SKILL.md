@@ -13,7 +13,7 @@ metadata:
 
 # Gitly GitHub connection
 
-Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](../GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

@@ -98,8 +98,8 @@ def iter_markdown_links(body):
             yield number, match.group(1)
 
 
-def check_links(skill_dir, skill_md, body, body_offset, report):
-    """Check that relative links point to existing files inside the skill."""
+def check_links(skill_dir, skill_md, body, body_offset, report, group_dir=None):
+    """Allow local resources and top-level documents shared by a skill group."""
     skill_root = skill_dir.resolve()
     for line_number, target in iter_markdown_links(body):
         if target.startswith("#") or URL_SCHEME_PATTERN.match(target) or target.startswith("//"):
@@ -119,6 +119,16 @@ def check_links(skill_dir, skill_md, body, body_offset, report):
         try:
             resolved.relative_to(skill_root)
         except ValueError:
+            shared_document = (
+                group_dir is not None
+                and re.fullmatch(r"\.\./[^./\\][^/\\]*", path_part)
+                and resolved.parent == group_dir.resolve()
+                and (resolved.suffix == ".md" or resolved.name == "LICENSE")
+            )
+            if shared_document:
+                if not resolved.is_file():
+                    report.error(location, "link '{}' points to a file that does not exist.".format(target))
+                continue
             report.error(
                 location,
                 "link '{}' points outside the skill directory. Skills are installed on "
@@ -230,7 +240,7 @@ def check_frontmatter(skill_dir, skill_md, data, report):
     return name if isinstance(name, str) else None
 
 
-def validate_skill(skill_dir, report):
+def validate_skill(skill_dir, report, group_dir=None):
     """Validate one skill directory. Returns its declared name, if any."""
     skill_md = skill_dir / "SKILL.md"
     # Compare names exactly: case-insensitive filesystems (macOS, Windows) would
@@ -280,7 +290,7 @@ def validate_skill(skill_dir, report):
         )
 
     body_offset = len(frontmatter.splitlines()) + 2  # opening and closing '---' lines
-    check_links(skill_dir, skill_md, body, body_offset, report)
+    check_links(skill_dir, skill_md, body, body_offset, report, group_dir)
 
     line_count = len(text.splitlines())
     if line_count > RECOMMENDED_MAX_LINES:
@@ -297,6 +307,8 @@ def validate_collection(skills_dir):
     report = Report()
     entries = sorted(skills_dir.iterdir(), key=lambda p: p.name)
     skill_dirs = []
+    groups = {}
+    resource_groups = set()
     for entry in entries:
         if entry.name.startswith("."):
             continue
@@ -328,6 +340,10 @@ def validate_collection(skills_dir):
             if not children:
                 report.error(display_path(entry), "a skill group must contain at least one skill directory.")
             skill_dirs.extend(children)
+            if entry.name != "_shared":
+                groups.update({child: entry for child in children})
+                if any(child.is_file() and not child.name.startswith(".") for child in entry.iterdir()):
+                    resource_groups.add(entry.name)
         elif entry.name not in COLLECTION_FILES:
             report.error(
                 display_path(entry),
@@ -337,9 +353,11 @@ def validate_collection(skills_dir):
 
     seen = {}
     for skill_dir in skill_dirs:
-        name = validate_skill(skill_dir, report)
+        name = validate_skill(skill_dir, report, groups.get(skill_dir))
         if name is None:
             continue
+        if name in resource_groups:
+            report.error(display_path(skill_dir), "skill name '{}' conflicts with a group resources directory.".format(name))
         if name in seen:
             report.error(
                 display_path(skill_dir / "SKILL.md"),

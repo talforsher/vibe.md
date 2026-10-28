@@ -24,7 +24,8 @@ bash scripts/install.sh --group gitly --agent codex --project /path/to/project
 ```
 
 This installs the `vibe` router and twelve `gitly-*` directories directly into
-`.agents/skills/`. Each workflow has its own `SKILL.md` and bundled resources.
+`.agents/skills/`. Each workflow has its own `SKILL.md`; the contract, license, and documentation
+are shared once in `.agents/skills/gitly/`, including single-workflow installs.
 Use `--skill gitly-status` for just one workflow plus the router. Replace `codex`
 with your agent's name to use its discovery directory.
 
@@ -37,7 +38,7 @@ future groups work without editing a central routing table. Project-level
 1. Create `skills/<skill-name>/SKILL.md` or `skills/<group>/<skill-name>/SKILL.md`. The leaf directory must match `name`; names must be unique across the collection.
 2. Use lowercase kebab-case for the name, for example `git-workflow`.
 3. Write a `description` that says what the skill does **and** when an agent should use it.
-4. Keep every file the skill needs inside its own directory, and link to them with relative paths. Set `metadata.collection: vibe.md` and `metadata.group: <group>` for routing.
+4. Use local resource links or `../filename` for top-level group Markdown documents and `LICENSE`. Installation includes shared documents automatically. Set `metadata.collection: vibe.md` and `metadata.group: <group>` for routing.
 5. Validate your work:
 
    ```bash
