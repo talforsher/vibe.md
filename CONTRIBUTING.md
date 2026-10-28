@@ -2,7 +2,7 @@
 
 Thank you for helping build vibe.md. This guide covers everything you need to add a new skill, improve an existing one, or work on the tooling around them.
 
-**The short version:** a new skill is one directory, `skills/<skill-name>/`, containing a `SKILL.md` file. Add it, run the validator, and open a Pull Request. You never need to change the installer, the validator, or CI to add a skill.
+**The short version:** a new skill is one directory, `skills/<skill-name>/` or `skills/<group>/<skill-name>/`, containing a `SKILL.md` file. Add it, run the validator, and open a Pull Request. You never need to change the installer, the validator, or CI to add a skill.
 
 ## Contents
 
@@ -69,8 +69,10 @@ python3 -m unittest discover -s tests
 
 ```text
 vibe.md/
-├── skills/                    # The skill collection: one directory per skill
-│   └── README.md
+├── skills/                    # Standalone skills and one level of groups
+│   ├── README.md
+│   ├── _shared/vibe/SKILL.md   # Router included in every installation
+│   └── gitly/<skill>/SKILL.md  # Independently usable group members
 ├── scripts/
 │   ├── install.sh             # Universal installer (bash, no dependencies)
 │   └── validate-skills.py     # Validator used locally and in CI
@@ -88,8 +90,8 @@ vibe.md/
 Key rules:
 
 1. `skills/` is the single source of truth. Each skill exists exactly once, there.
-2. Every directory directly inside `skills/` is a skill and must contain `SKILL.md`.
-3. Skills are discovered automatically by the installer, the validator, and CI.
+2. A skill has `SKILL.md`; a group contains skill directories one level down and has no `SKILL.md` of its own. Group names use lowercase kebab-case. `skills/_shared/` is reserved for common skills installed with every selection.
+3. Skills are discovered automatically by the installer, validator, and CI. Names must be unique across standalone skills, all groups, and shared skills because installation flattens them into one directory.
 4. Agent directories such as `.claude/skills/` are *installation destinations*, not sources. Never commit skills there.
 5. Test fixtures live in `tests/fixtures/` and never appear in the public catalog.
 
@@ -97,12 +99,35 @@ Key rules:
 
 1. **Check for overlap.** Search the [existing skills](skills/) and [open Pull Requests](https://github.com/vibe-md/vibe.md/pulls). Improving an existing skill is often better than adding a near-duplicate.
 2. **Pick a name.** Lowercase letters, digits, and single hyphens, up to 64 characters, for example `release-notes` or `pr-review`. Prefer clear, descriptive names over clever ones.
-3. **Create the directory** `skills/<skill-name>/` and add `SKILL.md`.
+3. **Create the directory** `skills/<skill-name>/` or `skills/<group>/<skill-name>/` and add `SKILL.md`. A group may also contain `README.md` and `LICENSE`.
 4. **Add optional resources** (`scripts/`, `references/`, `assets/`) only if the skill needs them.
 5. **Validate and test** as described below.
 6. **Open a Pull Request.**
 
-A skill contribution should only touch files inside `skills/<skill-name>/`. If you think the tooling needs to change to support your skill, open an issue first so we can keep the infrastructure generic.
+A skill contribution should stay inside its standalone skill or group directory. If you think the tooling needs to change to support your skill, open an issue first so we can keep the infrastructure generic.
+
+### Adding a group
+
+Create `skills/<group>/<skill-name>/SKILL.md` for each workflow. Each workflow
+must carry every required resource inside its own directory so individual installs
+and direct invocation work. Reuse existing namespaces, such as `gitly-status`, and
+keep names globally unique. Put shared instructions in each skill's `references/`
+when they are required by independently installable workflows.
+
+Include this metadata for the shared router, alongside the usual frontmatter:
+
+```yaml
+metadata:
+  collection: vibe.md
+  group: your-group
+```
+
+The installer discovers the group automatically. `--group your-group` installs
+all its members alongside common skills from `_shared/`; `--skill your-skill`
+installs one member with the same common skills. No group registry, router table,
+or installer edit is required. Adding a second group must preserve earlier skills
+and reuse identical common skills. The router reads installed skill descriptions,
+then loads only the selected skill. Test both group and individual installation.
 
 ## The SKILL.md format
 

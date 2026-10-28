@@ -1,11 +1,18 @@
 ---
 name: gitly-check
 description: Assess whether the current project still works and identify failures after code or AI changes. Use for broad reports of breakage, errors, failed builds or tests, unexpected behavior, or uncertainty about project health; use restore instead only when the user explicitly wants to go back.
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly check
 
-Read [the shared operating contract](GITLY.md) first and follow its approval, evidence, and language rules.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval, evidence, and language rules.
 
 ## Responsibility and triggers
 

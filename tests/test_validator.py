@@ -200,6 +200,43 @@ class GeneratedCaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("skill(s) are valid", result.stdout)
 
+    def test_groups_shared_skills_and_standalone_skills_are_all_validated(self):
+        for path in ("_shared/router", "versions/save", "versions/status", "docs/write-docs", "standalone"):
+            self.write_skill(path, frontmatter="name: {}\ndescription: A grouped workflow used for validation tests.\n".format(Path(path).name))
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("All 5 skill(s) are valid", result.stdout)
+
+    def test_duplicate_names_across_groups_are_rejected(self):
+        for group in ("first", "second"):
+            self.write_skill(group + "/same", frontmatter="name: same\ndescription: A grouped workflow used for validation tests.\n")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("duplicate skill name 'same'", result.stdout)
+
+    def test_group_does_not_hide_malformed_members_or_unsafe_links(self):
+        skill = self.write_skill("versions/good", frontmatter="name: good\ndescription: A grouped workflow used for validation tests.\n",
+                                 body="Read [another skill](../broken/SKILL.md).\n")
+        (skill.parent / "broken").mkdir()
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("missing SKILL.md", result.stdout)
+        self.assertIn("points outside the skill directory", result.stdout)
+
+    def test_symlinked_group_is_rejected(self):
+        target = Path(self.tmp, "outside")
+        shutil.copytree(FIXTURES / "valid", target)
+        os.symlink(target, self.skills / "linked")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("symbolic links are not allowed", result.stdout)
+
+    def test_invalid_group_name_is_rejected(self):
+        self.write_skill("Bad_Group/good", frontmatter="name: good\ndescription: A grouped workflow used for validation tests.\n")
+        result = run_validator("--skills-dir", str(self.skills))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("group names must use lowercase kebab-case", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

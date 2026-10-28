@@ -1,11 +1,18 @@
 ---
 name: gitly-settings
 description: Read or update persistent Gitly project preferences through natural language. Use for settings and phrases like "from now on", "always save online", "מעכשיו", or history/language preferences.
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly settings
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract and configuration schema.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract and configuration schema.
 
 ## Responsibility and triggers
 

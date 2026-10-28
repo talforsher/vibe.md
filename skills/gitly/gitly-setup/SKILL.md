@@ -1,11 +1,18 @@
 ---
 name: gitly-setup
 description: Check Git readiness and safely prepare a project repository. Use for Gitly setup, initialization, Git identity, ignore-file, "set up Git", "הגדר גיט", or "אתחל מאגר" requests.
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly setup
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

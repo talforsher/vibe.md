@@ -1,11 +1,18 @@
 ---
 name: gitly-restore
 description: Safely restore files from or revert to a previous project version while preserving recovery paths. Use only when the user explicitly wants to undo work, recover earlier content, or return to a prior state; general breakage reports belong to gitly-check.
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly restore
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

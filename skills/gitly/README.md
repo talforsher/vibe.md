@@ -1,54 +1,72 @@
-# Gitly for vibe.md
+# Gitly
 
-Gitly helps a coding agent handle Git, project checks, recovery, and GitHub
-workflows through everyday requests in English, Hebrew, or the user's language.
-It is a set of instructions with no runtime, service, account, or bundled scripts.
+Twelve independently discoverable skills for Git, project checks, recovery, and
+GitHub workflows, with everyday English and Hebrew examples.
 
-## Install
+## Install the group
 
-From a local vibe.md checkout:
+From a vibe.md checkout:
 
 ```bash
-bash scripts/install.sh --skill gitly --agent codex --project /path/to/project --dry-run
-bash scripts/install.sh --skill gitly --agent codex --project /path/to/project
+bash scripts/install.sh --group gitly --agent codex --project /path/to/project --dry-run
+bash scripts/install.sh --group gitly --agent codex --project /path/to/project
 ```
 
-Choose `claude-code`, `cursor`, `gemini`, or `copilot` instead of `codex` to use
-another agent's installation directory. The installer copies this entire folder,
-including the shared contract and every workflow reference.
+Use `claude-code`, `cursor`, `gemini`, or `copilot` for another agent. Installation
+places the shared `vibe` router and all twelve `gitly-*` skill directories directly
+in the chosen agent's skills directory. Each has its own `SKILL.md`, local contract,
+and license. No project-level `AGENTS.md` or `.gitly/GITLY.md` is needed.
 
-Reload your agent as directed by the installer, then ask "Set up Gitly", "Save my
-progress", or "Is everything backed up?" The entry skill is named `gitly`; the
-twelve `gitly-*` workflows are internal references, not separately installed
-commands. Agent discovery and activation should be checked in the chosen host.
+After the reload steps printed by the installer, say "Set up Gitly", "Save my
+progress", or "Is everything backed up?" You can also select an individual skill
+through your agent's skill UI, such as `$gitly-status` in Codex, or use `$vibe`
+when you want the router to choose. Automatic activation remains the host agent's
+decision.
 
-## Requirements and behavior
+To install only one workflow with the shared router:
 
-- Git is required for version workflows. GitHub connection and sync also require
-  GitHub CLI (`gh`), an appropriate account, and network access.
-- Project checks use existing project tools and may execute code or create files.
-  The agent reviews the commands and asks for approval before running them.
-- Read-only status, history, and comparison do not require approval. Changes,
-  authentication, and synchronization follow the shared contract's explicit
-  approval protocol.
-- Preferences live in the project's `.gitly/config.md`, when present. Installing
-  this bundle does not create or change that file.
-- The shared operating contract lives inside this skill at `references/GITLY.md`.
-  No separate project-level `.gitly/GITLY.md` installation is needed.
+```bash
+bash scripts/install.sh --skill gitly-status --agent codex --project /path/to/project
+```
 
-To remove the bundle, delete the installed `gitly/` skill folder. Keep any
-project preferences if you want to retain them.
+## Included skills
 
-## Source and adaptations
+| Skill | Purpose |
+| --- | --- |
+| `gitly-setup` | Prepare Git, local identity, and ignore rules |
+| `gitly-status` | Explain saved, unsaved, online, and at-risk work |
+| `gitly-check` | Investigate project health and run approved existing checks |
+| `gitly-save` | Save reviewed changes as a local commit |
+| `gitly-history` | Find previous versions |
+| `gitly-compare` | Explain changes between versions |
+| `gitly-restore` | Recover files or undo commits after explicit recovery intent |
+| `gitly-branches` | Create and switch safe experiments |
+| `gitly-merge` | Combine work without guessing through conflicts |
+| `gitly-github-connect` | Authenticate, create a repository, or link a remote |
+| `gitly-sync` | Fetch, fast-forward pull, or push without force |
+| `gitly-settings` | Read or update project preferences |
 
-Source: [NirGeron98/Gitly](https://github.com/NirGeron98/Gitly), commit
-`fe33bbae13552ed8973c6949b1d21e1ce2b746c9`.
+## Requirements
 
-This contribution packages the twelve original skills as reference documents
-under one `gitly` entry skill, fitting vibe.md's self-contained installation
-format. Each workflow's external shared-contract path was replaced with a link
-to the bundled `GITLY.md`. The remaining workflow text and shared contract are
-unchanged. The contribution uses vibe.md's [MIT license](LICENSE).
+Git is required for version workflows. GitHub connection and sync also require
+GitHub CLI (`gh`), an appropriate account, and network access. Project checks use
+the project's existing tools. Changes and checks follow the bundled contract's
+approval rules; read-only status, history, and comparison need no approval.
 
-Gitly's guidance relies on the host agent following instructions; it is not an
-executable security boundary.
+Preferences stay in the project's `.gitly/config.md`, if present. Missing
+preferences use defaults without creating a file. Installing skills does not
+modify project configuration or run Gitly workflows.
+
+Remove installed `gitly-*` directories to remove the group. Keep `vibe/` if other
+groups use it, and keep project preferences if you want to retain them.
+
+## Source
+
+Adapted from [NirGeron98/Gitly](https://github.com/NirGeron98/Gitly), commit
+`fe33bbae13552ed8973c6949b1d21e1ce2b746c9`. Workflow instructions are preserved,
+with their shared-contract paths changed to local relative links and attribution,
+group, and license metadata added. Every skill carries an unchanged copy of the
+shared contract, so it can also be installed independently. This contribution
+uses vibe.md's [MIT license](LICENSE).
+
+Gitly is agent guidance, not an executable security boundary.

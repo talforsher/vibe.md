@@ -1,11 +1,18 @@
 ---
 name: gitly-status
 description: Explain whether project work is saved, backed up, current, or at risk using local Git evidence. Use when the user asks what state the project is in or whether work is safe; do not use to test application behavior.
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly status
 
-Read [the shared operating contract](GITLY.md) first and follow its evidence and language rules.
+Read [the shared operating contract](references/GITLY.md) first and follow its evidence and language rules.
 
 ## Responsibility and triggers
 

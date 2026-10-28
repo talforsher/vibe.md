@@ -348,6 +348,182 @@ class InstallTests(InstallerTestCase):
         self.assertEqual(snapshot(self.project / ".claude"), {"skills"})
 
 
+class GroupInstallTests(InstallerTestCase):
+    def setUp(self):
+        super().setUp()
+        self.skills = self.root / "grouped skills"
+        for group, name in (("_shared", "router"), ("versions", "save"),
+                            ("versions", "status"), ("docs", "write-docs")):
+            skill = self.skills / group / name
+            (skill / "references").mkdir(parents=True)
+            (skill / "SKILL.md").write_text(
+                "---\nname: {}\ndescription: A workflow for testing grouped installations.\n"
+                "---\n\nRead [the contract](references/contract.md).\n".format(name)
+            )
+            (skill / "references/contract.md").write_text("Local workflow contract.\n")
+
+    def install_group(self, group="versions", agent="codex", *extra):
+        return self.run_installer(
+            "--group", group, "--agent", agent, "--skills-dir", str(self.skills),
+            "--project", str(self.project), *extra,
+        )
+
+    def test_group_and_shared_skills_are_flat_and_complete_for_every_agent(self):
+        for agent, directory in AGENT_DIRS.items():
+            with self.subTest(agent=agent):
+                result = self.install_group(agent=agent)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                dest = self.project / directory
+                self.assertEqual({p.name for p in dest.iterdir()}, {"save", "status", "router"})
+                for group, name in (("versions", "save"), ("versions", "status"),
+                                    ("_shared", "router")):
+                    self.assertEqual(tree(dest / name), tree(self.skills / group / name))
+        self.assertFalse((self.project / "AGENTS.md").exists())
+        self.assertFalse((self.project / ".gitly").exists())
+
+    def test_a_second_group_reuses_shared_skills_and_preserves_the_first(self):
+        self.assertEqual(self.install_group().returncode, 0)
+        before = tree(self.project)
+        result = self.install_group("docs")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        after = tree(self.project)
+        for path, content in before.items():
+            self.assertEqual(after[path], content)
+        self.assertTrue((self.project / ".agents/skills/write-docs/SKILL.md").is_file())
+        self.assertIn("'router' is already installed", result.stdout)
+
+    def test_individual_group_member_includes_only_it_and_shared_skills(self):
+        result = self.install("save", "codex", skills_dir=self.skills)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        dest = self.project / ".agents/skills"
+        self.assertEqual({p.name for p in dest.iterdir()}, {"save", "router"})
+
+    def test_group_dry_run_lists_every_destination_without_writing(self):
+        result = self.install_group("versions", "codex", "--dry-run")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in ("save", "status", "router"):
+            self.assertIn(".agents/skills/" + name, result.stdout)
+        self.assertEqual(snapshot(self.project), set())
+
+    def test_late_conflict_prevents_all_writes_including_shared_conflicts(self):
+        for name in ("status", "router"):
+            with self.subTest(name=name):
+                dest = self.project / ".agents/skills" / name
+                dest.mkdir(parents=True)
+                (dest / "SKILL.md").write_text("My existing instructions.\n")
+                before = tree(self.project)
+                result = self.install_group()
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("Nothing was changed", result.stderr)
+                self.assertEqual(tree(self.project), before)
+                shutil.rmtree(self.project / ".agents")
+
+    def test_force_replaces_conflicting_members_and_keeps_unselected_groups(self):
+        self.assertEqual(self.install_group("docs").returncode, 0)
+        other = tree(self.project / ".agents/skills/write-docs")
+        stale = self.project / ".agents/skills/status"
+        stale.mkdir()
+        (stale / "SKILL.md").write_text("Old version.\n")
+        result = self.install_group("versions", "codex", "--force")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(tree(stale), tree(self.skills / "versions/status"))
+        self.assertEqual(tree(self.project / ".agents/skills/write-docs"), other)
+
+    def test_symlink_in_late_member_prevents_all_writes(self):
+        os.symlink("/etc/hosts", str(self.skills / "versions/status/hosts"))
+        result = self.install_group()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("symbolic links", result.stderr)
+        self.assertEqual(snapshot(self.project), set())
+
+    def test_failed_late_move_rolls_back_earlier_new_and_replaced_skills(self):
+        dest = self.project / ".agents/skills/save"
+        dest.mkdir(parents=True)
+        (dest / "SKILL.md").write_text("My existing save workflow.\n")
+        before = tree(self.project)
+        fake_bin = self.root / "bin"
+        fake_bin.mkdir()
+        wrapper = fake_bin / "mv"
+        wrapper.write_text(
+            '#!/bin/sh\ncase "$1" in */new/router) exit 1;; esac\n'
+            'exec "$VIBE_TEST_REAL_MV" "$@"\n'
+        )
+        wrapper.chmod(0o755)
+        result = self.run_installer(
+            "--group", "versions", "--agent", "codex", "--force",
+            "--skills-dir", str(self.skills), "--project", str(self.project),
+            env_extra={"PATH": str(fake_bin) + os.pathsep + os.environ["PATH"],
+                       "VIBE_TEST_REAL_MV": shutil.which("mv")},
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Previous copies were restored", result.stderr)
+        self.assertEqual(tree(self.project), before)
+        self.assertEqual(snapshot(self.tmpdir), set())
+        self.assertFalse(list((self.project / ".agents").glob(".vibe-md-install.*")))
+
+    def test_duplicate_names_across_groups_are_rejected(self):
+        shutil.copytree(self.skills / "versions/save", self.skills / "docs/save")
+        result = self.install_group()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("duplicate skill name", result.stderr)
+        self.assertEqual(snapshot(self.project), set())
+
+    def test_failed_recovery_preserves_backups_instead_of_cleaning_them_up(self):
+        dest = self.project / ".agents/skills/save"
+        dest.mkdir(parents=True)
+        original = "My existing save workflow.\n"
+        (dest / "SKILL.md").write_text(original)
+        fake_bin = self.root / "bin"
+        fake_bin.mkdir()
+        wrapper = fake_bin / "mv"
+        wrapper.write_text(
+            '#!/bin/sh\ncase "$1" in */new/status|*/previous/save) exit 1;; esac\n'
+            'exec "$VIBE_TEST_REAL_MV" "$@"\n'
+        )
+        wrapper.chmod(0o755)
+        result = self.run_installer(
+            "--group", "versions", "--agent", "codex", "--force",
+            "--skills-dir", str(self.skills), "--project", str(self.project),
+            env_extra={"PATH": str(fake_bin) + os.pathsep + os.environ["PATH"],
+                       "VIBE_TEST_REAL_MV": shutil.which("mv")},
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("recovery is incomplete", result.stderr)
+        backups = list((self.project / ".agents").glob(".vibe-md-install.*/previous/save/SKILL.md"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), original)
+
+    def test_group_arguments_are_validated(self):
+        for name in ("../versions", "/versions", "_shared", "Versions"):
+            with self.subTest(name=name):
+                result = self.install_group(name)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("invalid group name", result.stderr)
+        result = self.install_group("missing")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("group 'missing' was not found", result.stderr)
+        result = self.install_group("versions", "codex", "--skill", "save")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("choose --skill or --group", result.stderr)
+        self.assertEqual(snapshot(self.project), set())
+
+    def test_group_install_from_downloaded_archive(self):
+        archive = self.root / "grouped.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(self.skills, arcname="vibe.md-main/skills")
+        script = self.root / "downloaded/install.sh"
+        script.parent.mkdir()
+        shutil.copy(INSTALLER, script)
+        result = self.run_installer(
+            "--group=versions", "--agent=codex", script=script,
+            env_extra={"VIBE_MD_ARCHIVE_URL": archive.as_uri()}, stdin_script=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        dest = self.project / ".agents/skills"
+        self.assertEqual({p.name for p in dest.iterdir()}, {"save", "status", "router"})
+        self.assertEqual(snapshot(self.tmpdir), set())
+
+
 class RemoteInstallTests(InstallerTestCase):
     """The installer run on its own downloads the collection. A local archive stands in for GitHub."""
 

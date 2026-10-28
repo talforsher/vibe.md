@@ -1,11 +1,18 @@
 ---
 name: gitly-branches
 description: List, create, and switch safe branches or isolated worktree experiments. Use for experiments, "try this without breaking my app", branch requests, "ניסוי", or "ענף".
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly branches
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

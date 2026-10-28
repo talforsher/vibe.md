@@ -1,11 +1,18 @@
 ---
 name: gitly-save
 description: Review project changes and save an intentional version with a meaningful commit. Use for save/commit requests such as "save everything I did today", "save my progress", "שמור", or "שמור את ההתקדמות".
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly save
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

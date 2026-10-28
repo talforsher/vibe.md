@@ -17,12 +17,12 @@
 - [ ] `SKILL.md` has valid YAML frontmatter with `name` and `description`.
 - [ ] The skill name is unique, lowercase kebab-case, and matches its directory name.
 - [ ] The description says what the skill does **and** when an agent should use it.
-- [ ] All files live inside `skills/<skill-name>/` and are linked with relative paths.
+- [ ] Each skill and its resources live inside `skills/<skill-name>/` or `skills/<group>/<skill-name>/`, with local relative links.
 - [ ] Prerequisites (tools, accounts, network access) are documented in `SKILL.md`.
 - [ ] No secrets, tokens, credentials, or personal data are included.
 - [ ] Bundled scripts perform no unexpected, destructive, or hidden operations, and `SKILL.md` explains what they do.
 - [ ] I tested the skill with at least one coding agent. Agents tested: <!-- e.g. Claude Code, Codex -->
-- [ ] Existing skills are unaffected (changes are limited to my skill's directory).
+- [ ] Existing skills are unaffected; group installation also preserves other installed groups.
 - [ ] Third-party material is properly licensed and attributed.
 
 ## Validation

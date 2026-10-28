@@ -1,11 +1,18 @@
 ---
 name: gitly-github-connect
 description: Check GitHub CLI authentication and safely create or link a GitHub repository. Use for GitHub connection, online backup setup, "connect to GitHub", or "חבר לגיטהאב".
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly GitHub connection
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

@@ -1,11 +1,18 @@
 ---
 name: gitly-merge
 description: Inspect and safely combine an experiment branch with the current project. Use for merge/integration requests such as "put the changes into my main project", "merge", "מזג", or "שלב את הניסוי".
+license: MIT
+metadata:
+  collection: vibe.md
+  group: gitly
+  author: NirGeron98
+  source: https://github.com/NirGeron98/Gitly
+  source-commit: fe33bbae13552ed8973c6949b1d21e1ce2b746c9
 ---
 
 # Gitly merge
 
-Read [the shared operating contract](GITLY.md) first and follow its approval contract.
+Read [the shared operating contract](references/GITLY.md) first and follow its approval contract.
 
 ## Responsibility and triggers
 

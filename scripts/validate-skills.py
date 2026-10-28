@@ -4,7 +4,7 @@
 Usage:
     python3 scripts/validate-skills.py [--skills-dir PATH]
 
-Each directory directly under the skills directory is treated as one skill.
+Skills can live directly under skills/ or one level down in a group.
 Skills are discovered automatically; nothing here knows about any particular
 skill. An empty collection is valid.
 
@@ -303,7 +303,31 @@ def validate_collection(skills_dir):
         if entry.is_symlink():
             report.error(display_path(entry), "symbolic links are not allowed in the skills directory.")
         elif entry.is_dir():
-            skill_dirs.append(entry)
+            is_group = not (entry / "SKILL.md").is_file() and (
+                entry.name == "_shared" or any(
+                    child.is_dir() and (child / "SKILL.md").is_file()
+                    for child in entry.iterdir()
+                )
+            )
+            if not is_group:
+                skill_dirs.append(entry)
+                continue
+            if entry.name != "_shared" and (
+                not NAME_PATTERN.fullmatch(entry.name) or len(entry.name) > NAME_MAX_LENGTH
+            ):
+                report.error(display_path(entry), "group names must use lowercase kebab-case, up to 64 characters.")
+            check_symlinks(entry, report)
+            children = []
+            for child in sorted(entry.iterdir(), key=lambda p: p.name):
+                if child.name.startswith(".") or child.is_symlink():
+                    continue
+                if child.is_dir():
+                    children.append(child)
+                elif child.name not in {"README.md", "LICENSE"}:
+                    report.error(display_path(child), "unexpected file in a skill group; use README.md or LICENSE.")
+            if not children:
+                report.error(display_path(entry), "a skill group must contain at least one skill directory.")
+            skill_dirs.extend(children)
         elif entry.name not in COLLECTION_FILES:
             report.error(
                 display_path(entry),
@@ -341,7 +365,7 @@ def main(argv=None):
     parser.add_argument(
         "--skills-dir",
         default=str(DEFAULT_SKILLS_DIR),
-        help="directory that contains one sub-directory per skill (default: skills/)",
+        help="directory containing skills and skill groups (default: skills/)",
     )
     args = parser.parse_args(argv)
 
