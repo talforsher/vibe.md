@@ -6,6 +6,7 @@ venv/
 
 # OS and editor files
 .DS_Store
+dist/
 Thumbs.db
 *.swp
 .idea/

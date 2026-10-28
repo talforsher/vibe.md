@@ -9,7 +9,7 @@ AI can write code. Great software takes more than code.
 
 vibe.md is an open-source collection of reusable skills for AI coding agents. Skills give your agent proven workflows for everything around the code: Git, collaboration, testing, documentation, code quality, deployment, and the processes that turn generated code into shipped software.
 
-> **Project status:** the infrastructure is live and the collection is ready for its first community skills. See [Available Skills](#available-skills).
+> **Available now:** Gitly, twelve Git and project-workflow skills, plus a shared router. See [Available Skills](#available-skills).
 
 ## Contents
 
@@ -69,8 +69,6 @@ These terms are easy to mix up, so here is what they mean in this project:
 
 ## Quick start
 
-> The collection does not contain any published skills yet. The commands below are real and work today; installation becomes useful as soon as the first skills are merged.
-
 **1. See what is available.**
 
 ```bash
@@ -79,17 +77,17 @@ cd vibe.md
 bash scripts/install.sh --list
 ```
 
-Today this prints `No skills are available yet.`
+The catalog shows each skill and its group, including Gitly and the shared `vibe` router.
 
-**2. Install a skill into your project** (once skills are available), choosing your agent:
+**2. Install Gitly into your project**, choosing your agent:
 
 ```bash
-bash scripts/install.sh --skill <skill-name> --agent <agent> --project /path/to/your/project
+bash scripts/install.sh --group gitly --agent <agent> --project /path/to/your/project
 ```
 
 `<agent>` is one of `claude-code`, `codex`, `cursor`, `gemini`, or `copilot`. Add `--dry-run` first to see exactly what will be written.
 
-**3. Use it.** Open your agent in the project. Most agents pick a skill automatically when your request matches its description, and you can also invoke it directly. See [Supported coding agents](#supported-coding-agents) for each agent's details.
+**3. Use it.** Follow the installer's reload instructions, then ask "Set up Gitly", "Save my progress", or "Is everything backed up?" All twelve skills are directly available to the agent. In Codex you can also invoke `$gitly-status` directly or `$vibe` to choose a workflow. Agents can select matching skills automatically. See [Supported coding agents](#supported-coding-agents) for each agent's details.
 
 ## Supported coding agents
 
@@ -141,7 +139,28 @@ Avoid installing the same skill into several directories that one agent reads. G
 
 ## Available Skills
 
-The collection is preparing for its first community contributions, so there are no published skills yet.
+| Group | Skills | Install |
+| --- | --- | --- |
+| [Gitly](skills/gitly/README.md) | 12 workflows for setup, status, checks, saving, history, comparison, recovery, branches, merging, GitHub connection, sync, and preferences | `--group gitly` |
+| Shared | `vibe`, the router for installed groups | Included automatically |
+
+Install one workflow with `--skill gitly-status` instead of installing the group.
+Each installation includes the shared router. Group members are installed as flat,
+directly discoverable skill directories, with shared group documents installed once:
+
+```text
+.agents/skills/
+├── vibe/SKILL.md
+├── gitly/GITLY.md              # shared contract; LICENSE and docs are here too
+├── gitly-status/SKILL.md
+├── gitly-save/SKILL.md
+└── ...
+```
+
+The router uses the installed skills' descriptions and group metadata, so future
+groups need no changes to its instructions. Skills use `SKILL.md`; `AGENTS.md` is
+project guidance, not a skill entrypoint. The installer does not edit project
+guidance. Automatic activation remains the host agent's decision.
 
 Have a workflow your agent should know? [Contribute a skill](CONTRIBUTING.md) or [propose one](https://github.com/vibe-md/vibe.md/issues/new?template=skill_proposal.yml). New skills show up in `install.sh --list` as soon as they are merged.
 
@@ -151,7 +170,15 @@ Have a workflow your agent should know? [Contribute a skill](CONTRIBUTING.md) or
 vibe.md/
 ├── skills/                        # The skill collection (the single source of truth)
 │   ├── README.md
-│   └── <skill-name>/              # One directory per skill
+│   ├── _shared/
+│   │   └── vibe/SKILL.md          # Router installed with every selection
+│   ├── gitly/                    # Installable group
+│   │   ├── README.md
+│   │   ├── GITLY.md             # Shared operating contract
+│   │   ├── LICENSE
+│   │   └── gitly-status/         # One directory per independently usable skill
+│   │       └── SKILL.md        # References ../GITLY.md in source
+│   └── <skill-name>/             # Standalone skills are also supported
 │       ├── SKILL.md               # Required: frontmatter + instructions
 │       ├── scripts/               # Optional: executable helpers
 │       ├── references/            # Optional: documentation loaded on demand
@@ -176,23 +203,24 @@ vibe.md/
 
 | Part | Purpose |
 | --- | --- |
-| `skills/` | Every published skill, one directory each. Adding a directory here is all it takes to add a skill. |
+| `skills/` | Standalone skills and one level of groups; each leaf skill has its own `SKILL.md`. |
+| `skills/_shared/` | Common skills installed with every selection, including the `vibe` router. |
 | `SKILL.md` | The skill itself: YAML frontmatter (`name`, `description`, optional fields) followed by Markdown instructions. |
 | `scripts/` (in a skill) | Helper programs the agent may run while using the skill. Never run by the installer. |
 | `references/` (in a skill) | Longer documentation the agent reads only when needed, keeping `SKILL.md` small. |
 | `assets/` (in a skill) | Static files such as templates, examples, or schemas. |
-| `scripts/install.sh` | Copies a skill into a project for a chosen agent. Discovers skills automatically. |
+| `scripts/install.sh` | Installs a group or individual skill with shared skills, flattening the directories for discovery. |
 | `scripts/validate-skills.py` | Checks every skill's structure and metadata. Used locally and in CI. |
 | `tests/` | Automated tests for the validator and installer, using isolated fixtures and temporary directories. |
 | `.github/workflows/` | CI that validates skills and runs the tests on every Pull Request and every push to `main`. |
 
 ## How it works
 
-1. **A contributor adds a skill** by opening a Pull Request that creates `skills/<skill-name>/`.
+1. **A contributor adds a skill** by opening a Pull Request that creates `skills/<skill-name>/` or `skills/<group>/<skill-name>/`.
 2. **CI validates it.** GitHub Actions discovers the new directory automatically, validates it, and runs the test suite on Linux and macOS. No configuration change is needed for new skills.
 3. **Maintainers review it** for usefulness, clarity, safety, and licensing.
 4. **The skill is merged** into `main` and becomes part of the collection.
-5. **A developer installs it** with `install.sh`, which copies the complete skill directory into the project's directory for their agent.
+5. **A developer installs it** with `install.sh --skill <name>` or `--group <group>`, which installs selected skills, shared group documents, and the router into their agent's discovery directory.
 6. **The agent discovers it.** Claude Code and Codex usually pick up new skills during a session; Cursor may need a restart and Gemini CLI a `/skills reload`; Copilot cloud agent sees the skill once it is committed and pushed. See [Supported coding agents](#supported-coding-agents).
 7. **The agent loads it when appropriate**, either because the request matches the skill's description or because you invoked it explicitly. Gemini CLI asks for your consent first.
 
@@ -211,8 +239,10 @@ The installer has no other dependencies. It does not need Python, `sudo`, or net
 ```text
 bash scripts/install.sh --list
 bash scripts/install.sh --skill <name> --agent <agent> [options]
+bash scripts/install.sh --group <name> --agent <agent> [options]
 
-  --skill <name>        Skill to install (see --list)
+  --skill <name>        One skill to install (see --list)
+  --group <name>        All skills in a group (see --list)
   --agent <agent>       claude-code, codex, cursor, gemini, or copilot
   --project <dir>       Project to install into (default: current directory)
   --dry-run             Show what would happen without writing anything
@@ -231,8 +261,8 @@ Clone the repository once, then install into any project:
 git clone https://github.com/vibe-md/vibe.md.git ~/vibe.md
 
 cd /path/to/your/project
-bash ~/vibe.md/scripts/install.sh --skill <skill-name> --agent claude-code --dry-run
-bash ~/vibe.md/scripts/install.sh --skill <skill-name> --agent claude-code
+bash ~/vibe.md/scripts/install.sh --group gitly --agent claude-code --dry-run
+bash ~/vibe.md/scripts/install.sh --group gitly --agent claude-code
 ```
 
 Without `--project`, the skill is installed into the current directory. Use `--project /path/to/project` to target a different one. Paths containing spaces are supported.
@@ -240,8 +270,9 @@ Without `--project`, the skill is installed into the current directory. Use `--p
 The installer:
 
 - validates its arguments and rejects unknown agents and malformed skill names,
-- copies the **complete** skill directory, including `scripts/`, `references/`, and `assets/`,
-- stages the copy and moves it into place in one step, so a failed install never leaves a half-copied skill,
+- copies skill resources, shared group documents and licenses, and the router; group documents are included even for a single workflow,
+- resolves source group links for the flat installed layout,
+- preflights every destination before writing, stages all selected skills, and restores earlier copies if a later move fails,
 - refuses to write outside the target project, even through symbolic links,
 - never runs any of the skill's scripts, never uses `sudo`, and never installs globally.
 
@@ -255,8 +286,8 @@ The safer approach is to download the script, read it, then run it:
 curl -fsSL -o vibe-install.sh https://raw.githubusercontent.com/vibe-md/vibe.md/main/scripts/install.sh
 less vibe-install.sh                          # review it
 bash vibe-install.sh --list
-bash vibe-install.sh --skill <skill-name> --agent codex --dry-run
-bash vibe-install.sh --skill <skill-name> --agent codex
+bash vibe-install.sh --group gitly --agent codex --dry-run
+bash vibe-install.sh --group gitly --agent codex
 ```
 
 A one-line form is also supported. It runs code from the internet without letting you review it first, so use it only if you trust the source:
@@ -267,12 +298,19 @@ curl -fsSL https://raw.githubusercontent.com/vibe-md/vibe.md/main/scripts/instal
 
 ### Manual installation
 
-A skill is just a directory, so you can install it without the installer. Copy the whole directory, not only `SKILL.md`:
+Use a prepared agent ZIP generated by `scripts/build-packages.py`. It contains
+ready-to-use skills and all required group documents. Read its `INSTALL.md` first
+and compare existing destinations before copying. To copy a reviewed ZIP manually:
 
 ```bash
 mkdir -p /path/to/project/.claude/skills
-cp -R vibe.md/skills/<skill-name> /path/to/project/.claude/skills/
+cp -R gitly-install/skills/. /path/to/project/.claude/skills/
 ```
+
+Do not copy a grouped workflow's source folder alone: source group links are
+resolved by the installer and package builder, and shared documents must accompany
+individual workflows too. Standalone self-contained skills can still be copied
+as complete directories.
 
 Replace `.claude/skills` with the directory for your agent from the [compatibility table](#supported-coding-agents).
 
@@ -287,9 +325,9 @@ Pass the agent with `--agent`. To use one skill with several agents, either inst
 | The skill is not installed yet | It is installed. |
 | An identical copy is already installed | Nothing changes; the installer reports that it is up to date. |
 | A different directory or file with the same name exists | The installer stops with an error and changes nothing. |
-| Same as above, with `--force` | The existing copy is replaced. Its contents are deleted, so back up any local changes first. |
+| Same as above, with `--force` | Conflicting selected skills are replaced. Back up local changes first. |
 
-Other skills in the same directory are never touched.
+These checks cover all selected group members and shared skills before any write. Other installed skills and groups are never touched. Identical shared skills are reused when adding another group.
 
 ### Reloading the agent
 
@@ -301,7 +339,7 @@ The installer only installs into projects, on purpose: a project-level skill is 
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -R vibe.md/skills/<skill-name> ~/.claude/skills/
+cp -R gitly-install/skills/. ~/.claude/skills/
 ```
 
 ## Creating a skill
@@ -382,7 +420,7 @@ New skills, improvements, and fixes are all welcome. Here is the full path from 
 10. **Review the CI results.** The checks run automatically; errors point to the exact file and line.
 11. **Address feedback** by pushing more commits to your branch.
 
-Adding a skill only requires files inside `skills/<skill-name>/`. You never need to touch the installer or CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
+Adding a skill only requires files inside `skills/<skill-name>/` or `skills/<group>/<skill-name>/`. You never need to touch the installer or CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
 
 ## Skill quality standards
 
@@ -406,7 +444,7 @@ Common anti-patterns:
 - Instructions that only work on the author's machine.
 - Scripts that need `sudo`, change global configuration, or download and run remote code.
 - Silent `git push --force`, `rm -rf`, or other destructive steps.
-- Links to files outside the skill directory.
+- Links outside the skill and its permitted shared group documents.
 
 ## Security
 
@@ -464,7 +502,7 @@ No. Every skill is installed individually. Install only what you need.
 Yes. See [Creating a skill](#creating-a-skill). You can keep it private in your own project or contribute it to vibe.md.
 
 **How do I submit a skill?**
-Open a Pull Request that adds `skills/<skill-name>/`. CI validates it automatically and a maintainer reviews it. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Open a Pull Request that adds `skills/<skill-name>/` or `skills/<group>/<skill-name>/`. CI validates it automatically and a maintainer reviews it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **Can I use skills without the installer?**
 Yes. Copy the skill's directory into your agent's skills directory. See [Manual installation](#manual-installation).
@@ -473,7 +511,7 @@ Yes. Copy the skill's directory into your agent's skills directory. See [Manual 
 Not with the installer, which only installs into projects. You can copy a skill manually into your agent's personal directory, such as `~/.claude/skills/`. See [Installing globally](#installing-globally).
 
 **Does installing a skill modify my source code?**
-No. The installer only creates the skill's directory inside your agent's skills folder (for example `.claude/skills/<skill-name>/`). It does not touch your source files or agent settings, and it does not run any scripts. What the agent does once it uses a skill depends on the skill and on what you ask it to do.
+No. The installer creates the selected skills, shared group documents, and router inside your agent's skills folder (for example `.claude/skills/<skill-name>/`). It does not touch your source files or agent settings, and it does not run any scripts. What the agent does once it uses a skill depends on the skill and on what you ask it to do.
 
 **Is vibe.md free?**
 Yes. vibe.md is free and open source under the MIT License. Your coding agent may have its own costs.

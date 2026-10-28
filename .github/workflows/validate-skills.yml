@@ -52,11 +52,8 @@ jobs:
         if: runner.os == 'Linux'
         run: shellcheck scripts/install.sh
 
-      - name: Run validator tests
-        run: python -m unittest tests.test_validator -v
-
-      - name: Run installer tests
-        run: python -m unittest tests.test_installer -v
+      - name: Run validator, installer, packaging, and workflow tests
+        run: python -m unittest discover -s tests -v
 
   # Single, stable check to require in branch protection, independent of the matrix.
   ci-passed:

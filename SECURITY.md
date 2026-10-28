@@ -46,7 +46,7 @@ Every skill must:
 - **Never escalate privileges.** Skills must not require `sudo` or modify files outside the project unless that is their clearly documented purpose.
 - **Not download and execute remote code** (for example `curl ... | sh`) at run time.
 - **Not ask agents to bypass safety controls**, ignore user instructions, or pre-approve shell access through `allowed-tools` without a clear reason.
-- **Stay self-contained.** All files live inside the skill's directory. Symbolic links are rejected by the validator.
+- **Keep dependencies inside the skill or group.** A skill may use its own files and top-level group Markdown documents or `LICENSE`, which are included automatically on installation. Links to sibling workflows or outside the group are rejected. Symbolic links are rejected by the validator.
 
 Maintainers review every new skill and every change to an existing skill before merging. Reviews reduce risk but cannot eliminate it.
 

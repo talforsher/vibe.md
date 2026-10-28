@@ -2,7 +2,7 @@
 
 Thank you for helping build vibe.md. This guide covers everything you need to add a new skill, improve an existing one, or work on the tooling around them.
 
-**The short version:** a new skill is one directory, `skills/<skill-name>/`, containing a `SKILL.md` file. Add it, run the validator, and open a Pull Request. You never need to change the installer, the validator, or CI to add a skill.
+**The short version:** a new skill is one directory, `skills/<skill-name>/` or `skills/<group>/<skill-name>/`, containing a `SKILL.md` file. Add it, run the validator, and open a Pull Request. You never need to change the installer, the validator, or CI to add a skill.
 
 ## Contents
 
@@ -69,8 +69,10 @@ python3 -m unittest discover -s tests
 
 ```text
 vibe.md/
-├── skills/                    # The skill collection: one directory per skill
-│   └── README.md
+├── skills/                    # Standalone skills and one level of groups
+│   ├── README.md
+│   ├── _shared/vibe/SKILL.md   # Router included in every installation
+│   └── gitly/<skill>/SKILL.md  # Independently usable group members
 ├── scripts/
 │   ├── install.sh             # Universal installer (bash, no dependencies)
 │   └── validate-skills.py     # Validator used locally and in CI
@@ -88,8 +90,8 @@ vibe.md/
 Key rules:
 
 1. `skills/` is the single source of truth. Each skill exists exactly once, there.
-2. Every directory directly inside `skills/` is a skill and must contain `SKILL.md`.
-3. Skills are discovered automatically by the installer, the validator, and CI.
+2. A skill has `SKILL.md`; a group contains skill directories one level down and has no `SKILL.md` of its own. Group names use lowercase kebab-case. `skills/_shared/` is reserved for common skills installed with every selection.
+3. Skills are discovered automatically by the installer, validator, and CI. Names must be unique across standalone skills, all groups, and shared skills because installation flattens them into one directory.
 4. Agent directories such as `.claude/skills/` are *installation destinations*, not sources. Never commit skills there.
 5. Test fixtures live in `tests/fixtures/` and never appear in the public catalog.
 
@@ -97,12 +99,38 @@ Key rules:
 
 1. **Check for overlap.** Search the [existing skills](skills/) and [open Pull Requests](https://github.com/vibe-md/vibe.md/pulls). Improving an existing skill is often better than adding a near-duplicate.
 2. **Pick a name.** Lowercase letters, digits, and single hyphens, up to 64 characters, for example `release-notes` or `pr-review`. Prefer clear, descriptive names over clever ones.
-3. **Create the directory** `skills/<skill-name>/` and add `SKILL.md`.
+3. **Create the directory** `skills/<skill-name>/` or `skills/<group>/<skill-name>/` and add `SKILL.md`. A group may also contain Markdown documentation and `LICENSE`.
 4. **Add optional resources** (`scripts/`, `references/`, `assets/`) only if the skill needs them.
 5. **Validate and test** as described below.
 6. **Open a Pull Request.**
 
-A skill contribution should only touch files inside `skills/<skill-name>/`. If you think the tooling needs to change to support your skill, open an issue first so we can keep the infrastructure generic.
+A skill contribution should stay inside its standalone skill or group directory. If you think the tooling needs to change to support your skill, open an issue first so we can keep the infrastructure generic.
+
+### Adding a group
+
+Create `skills/<group>/<skill-name>/SKILL.md` for each workflow. Each workflow
+may use resources inside its own directory, or top-level Markdown documents and
+`LICENSE` shared by its group. Link shared files as `../CONTRACT.md` or `../LICENSE`.
+The installer and ZIP builder include them once in `<agent-skills>/<group>/` and
+resolve those links in installed skills. Individual installation also includes
+these group resources. Keep skill names globally unique and distinct from group
+resources directory names. Links to sibling workflows or outside the group remain
+invalid.
+
+Include this metadata for the shared router, alongside the usual frontmatter:
+
+```yaml
+metadata:
+  collection: vibe.md
+  group: your-group
+```
+
+The installer discovers the group automatically. `--group your-group` installs
+all its members alongside common skills from `_shared/`; `--skill your-skill`
+installs one member with the same common skills. No group registry, router table,
+or installer edit is required. Adding a second group must preserve earlier skills
+and reuse identical common skills. The router reads installed skill descriptions,
+then loads only the selected skill. Test both group and individual installation.
 
 ## The SKILL.md format
 
@@ -163,7 +191,7 @@ Guidelines:
 - **Be actionable.** Write steps an agent can follow and a reviewer can verify. "Run `git status` and stop if the working tree is dirty" beats "make sure things are clean".
 - **Be concise.** The whole `SKILL.md` is loaded into the agent's context when the skill activates. Keep it under 500 lines (the validator warns above that) and move detail into `references/`.
 - **Be portable.** Do not assume a specific agent, operating system, or file layout unless you must. If you must, say so in `compatibility`.
-- **Use relative paths** for files inside the skill, such as `references/checklist.md`. Never reference files outside the skill directory: each skill is installed on its own.
+- **Use relative paths** for files inside the skill, such as `references/checklist.md`. Grouped skills may also link to top-level group Markdown documents or `LICENSE` using `../filename`; installation includes these dependencies automatically. Other links outside the skill are rejected.
 - **Ask before destructive actions.** Tell the agent to confirm with the user before deleting, force-pushing, publishing, or spending money.
 
 ## Optional resources
@@ -176,7 +204,7 @@ Guidelines:
 
 None of these directories is required. Other file names are allowed, but these conventions keep skills easy to review. Symbolic links are not allowed anywhere in a skill.
 
-The validator checks every relative Markdown link in `SKILL.md` (for example `[checklist](references/checklist.md)`): the target must exist and must be inside the skill directory. Links inside code blocks and inline code are not checked.
+The validator checks every relative Markdown link in `SKILL.md` (for example `[checklist](references/checklist.md)`): the target must exist inside the skill, or be a top-level document or `LICENSE` in its group. Links inside code blocks and inline code are not checked.
 
 ## A complete example
 
@@ -249,7 +277,7 @@ The validator checks that:
 - the frontmatter exists and is valid YAML,
 - `name` and `description` are present and well-formed,
 - names are lowercase kebab-case, unique, and match their directory,
-- relative links point to files that exist inside the skill,
+- relative links resolve to local files or the permitted shared group documents,
 - the skill contains no symbolic links and has instructions after the frontmatter.
 
 Errors name the file and, where possible, the line, plus a hint on how to fix it.
@@ -316,7 +344,7 @@ Pull Requests that violate these rules will be closed. Report suspected vulnerab
 
 - vibe.md is released under the [MIT License](LICENSE). By contributing, you agree that your contribution is licensed under the MIT License, unless the skill states a different license in its `license` field.
 - You must have the right to submit everything you contribute.
-- Third-party material (code, text, templates) must have a license that allows redistribution and must keep its copyright notice. Include the original license file inside the skill directory and set the `license` field accordingly, for example `license: Apache-2.0. See LICENSE.txt`.
+- Third-party material (code, text, templates) must have a license that allows redistribution and must keep its copyright notice. Include the original license file inside the skill directory or as the group-level `LICENSE` and set the `license` field accordingly, for example `license: Apache-2.0. See LICENSE.txt`.
 - Credit the original authors in `SKILL.md` or in `metadata`.
 - Do not include material whose license you are unsure about. Ask in the Pull Request.
 

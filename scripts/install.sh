@@ -81,8 +81,10 @@ agent_next_steps() {
 # ---------------------------------------------------------------------------
 DOWNLOAD_DIR=""
 STAGE_DIR=""
+PREPARE_DIR=""
 
 cleanup() {
+  if [ -n "$PREPARE_DIR" ] && [ -d "$PREPARE_DIR" ]; then rm -rf "$PREPARE_DIR"; fi
   if [ -n "$STAGE_DIR" ] && [ -d "$STAGE_DIR" ]; then rm -rf "$STAGE_DIR"; fi
   if [ -n "$DOWNLOAD_DIR" ] && [ -d "$DOWNLOAD_DIR" ]; then rm -rf "$DOWNLOAD_DIR"; fi
 }
@@ -113,9 +115,11 @@ vibe.md skill installer
 Usage:
   install.sh --list
   install.sh --skill <name> --agent <agent> [options]
+  install.sh --group <name> --agent <agent> [options]
 
 Options:
-  --skill <name>        Skill to install (see --list).
+  --skill <name>        One skill to install (see --list).
+  --group <name>        Install every skill in a group (see --list).
   --agent <agent>       Agent to install for: ${SUPPORTED_AGENTS// /, }.
   --project <dir>       Project to install into (default: current directory).
   --dry-run             Show what would happen without writing anything.
@@ -138,6 +142,7 @@ When run from a clone of vibe.md, skills come from that clone. When run on its
 own (for example piped from curl), the collection is downloaded from
 ${REPO_URL}.
 
+Shared skills (including the vibe router) are included with every installation.
 The installer only copies files. It never runs a skill's scripts, never needs
 sudo, and never writes outside the target project.
 EOF
@@ -227,17 +232,49 @@ resolve_skills_dir() {
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
+# Standalone skills and one level of groups share a flat installed namespace.
+# _shared contains common skills installed with every selection.
+discover_skills() {
+  SOURCES=()
+  local dir child source name
+  for dir in "$SKILLS_DIR"/*; do
+    [ -d "$dir" ] || continue
+    [ ! -L "$dir" ] || die "symbolic links are not allowed in the skills collection: $dir"
+    if [ -f "$dir/SKILL.md" ]; then
+      SOURCES+=("$dir")
+    else
+      for child in "$dir"/*; do
+        [ -f "$child/SKILL.md" ] || continue
+        [ ! -L "$child" ] || die "symbolic links are not allowed in the skills collection: $child"
+        SOURCES+=("$child")
+      done
+    fi
+  done
+  local names=" "
+  for source in "${SOURCES[@]:-}"; do
+    [ -n "$source" ] || continue
+    name="$(basename "$source")"
+    is_valid_skill_name "$name" || die "invalid skill name '$name' in the collection."
+    case "$names" in
+      *" $name "*) die "duplicate skill name '$name'. Installed skill names must be unique across groups." ;;
+    esac
+    names="$names$name "
+  done
+}
+
 list_skills() {
-  local dir name description count=0
-  for dir in "$SKILLS_DIR"/*/; do
-    [ -f "${dir}SKILL.md" ] || continue
-    name="$(basename "$dir")"
-    is_valid_skill_name "$name" || continue
-    if [ "$count" -eq 0 ]; then printf 'Available skills:\n\n'; fi
+  local source name description group count=0
+  for source in "${SOURCES[@]:-}"; do
+    [ -n "$source" ] || continue
+    name="$(basename "$source")"
+    group="$(basename "$(dirname "$source")")"
+    [ "$(dirname "$source")" != "$SKILLS_DIR" ] || group="standalone"
+    [ "$group" != "_shared" ] || group="shared"
+    if [ "$count" -eq 0 ]; then printf 'Available skills (group):\n\n'; fi
     count=$((count + 1))
-    description="$(read_description "${dir}SKILL.md")"
+    description="$(read_description "$source/SKILL.md")"
     if [ "${#description}" -gt 100 ]; then description="${description:0:97}..."; fi
-    printf '  %-28s %s\n' "$name" "$description"
+    printf '  %-28s [%-10s] %s\n' "$name" "$group" "$description"
   done
 
   if [ "$count" -eq 0 ]; then
@@ -245,8 +282,92 @@ list_skills() {
     echo "The collection is ready for its first contributions:"
     echo "${REPO_URL}/blob/main/CONTRIBUTING.md"
   else
-    printf '\nInstall one with: install.sh --skill <name> --agent <agent>\n'
+    printf '\nInstall with --skill <name> or --group <group>, plus --agent <agent>.\n'
+    echo "Shared skills are included automatically."
   fi
+}
+
+select_skills() {
+  SELECTED=()
+  local source
+  for source in "${SOURCES[@]:-}"; do
+    [ -n "$source" ] || continue
+    if { [ -n "$SKILL" ] && [ "$(basename "$source")" = "$SKILL" ]; } ||
+       { [ -n "$GROUP" ] && [ "$(dirname "$source")" = "$SKILLS_DIR/$GROUP" ]; }; then
+      SELECTED+=("$source")
+    fi
+  done
+  if [ "${#SELECTED[@]}" -eq 0 ]; then
+    if [ -n "$GROUP" ]; then
+      die "group '$GROUP' was not found." "Run 'install.sh --list' to see the available groups."
+    fi
+    die "skill '$SKILL' was not found." "Run 'install.sh --list' to see the available skills."
+  fi
+  for source in "${SOURCES[@]:-}"; do
+    [ -n "$source" ] || continue
+    if [ "$(dirname "$source")" = "$SKILLS_DIR/_shared" ] &&
+       [ "$(basename "$source")" != "$SKILL" ]; then
+      SELECTED+=("$source")
+    fi
+  done
+}
+
+# Keep skills directly discoverable while installing group documents only once.
+# Source links ../FILE become ../<group>/FILE in the flat installed layout.
+prepare_selection() {
+  local source name group_dir group file candidate original
+  local prepared=()
+  ENTRY_SKILL="$(basename "${SELECTED[0]}")"
+  PREPARE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vibe-md-prepare.XXXXXX")" ||
+    die "could not create a temporary directory for the installation layout."
+  for source in "${SELECTED[@]}"; do
+    name="$(basename "$source")"
+    group_dir="$(dirname "$source")"
+    group="$(basename "$group_dir")"
+    if [ -n "$(find "$source" -type l 2>/dev/null | head -n 1)" ]; then
+      die "skill '$name' contains symbolic links and cannot be installed safely."
+    fi
+    cp -R "$source" "$PREPARE_DIR/$name" || die "could not prepare skill '$name'. Nothing was installed."
+    prepared+=("$PREPARE_DIR/$name")
+    if [ "$group_dir" = "$SKILLS_DIR/_shared" ]; then
+      ENTRY_SKILL="$name"
+    elif [ "$group_dir" != "$SKILLS_DIR" ]; then
+      is_valid_skill_name "$group" || die "invalid group name '$group'."
+      if [ ! -d "$PREPARE_DIR/$group" ] || [ -f "$PREPARE_DIR/$group/SKILL.md" ]; then
+        for file in "$group_dir"/*.md "$group_dir/LICENSE"; do
+          [ ! -L "$file" ] || die "group '$group' contains symbolic links and cannot be installed safely."
+          [ -f "$file" ] || continue
+          if [ -f "$PREPARE_DIR/$group/SKILL.md" ]; then
+            die "group resources '$group' conflict with a skill of the same name."
+          fi
+          if [ ! -d "$PREPARE_DIR/$group" ]; then
+            for candidate in "${SOURCES[@]}"; do
+              [ "$(basename "$candidate")" != "$group" ] ||
+                die "group resources '$group' conflict with a skill of the same name."
+            done
+            mkdir "$PREPARE_DIR/$group"
+          fi
+          cp "$file" "$PREPARE_DIR/$group/" || die "could not prepare group resources for '$group'."
+        done
+      fi
+      original="$PREPARE_DIR/$name/SKILL.md"
+      sed -E "s|(\]\([[:blank:]]*<?)\.\./|\1../$group/|g" "$original" > "$PREPARE_DIR/skill.tmp" ||
+        die "could not resolve resource links for '$name'."
+      cp "$PREPARE_DIR/skill.tmp" "$original"
+    fi
+  done
+  rm -f "$PREPARE_DIR/skill.tmp"
+  # A group is selected at most once; include its common documents as one unit.
+  for source in "${SELECTED[@]}"; do
+    group_dir="$(dirname "$source")"
+    group="$(basename "$group_dir")"
+    if [ "$group_dir" != "$SKILLS_DIR" ] && [ "$group_dir" != "$SKILLS_DIR/_shared" ] &&
+       [ -d "$PREPARE_DIR/$group" ]; then
+      prepared+=("$PREPARE_DIR/$group")
+      break
+    fi
+  done
+  SELECTED=("${prepared[@]}")
 }
 
 # Fail if any existing part of the destination resolves outside the project,
@@ -272,84 +393,111 @@ check_destination_inside_project() {
   done
 }
 
-install_skill() {
-  local source="$SKILLS_DIR/$SKILL" label rel project skills_root dest action parent
+# Restore every destination already changed if a later move fails.
+rollback_install() {
+  local skills_root="$1" name failed=0 recovery="$STAGE_DIR"
+  for name in "${CHANGED[@]:-}"; do
+    [ -n "$name" ] || continue
+    if ! rm -rf -- "${skills_root:?}/${name:?}"; then
+      failed=1
+      continue
+    fi
+    if [ -e "$STAGE_DIR/previous/$name" ] || [ -L "$STAGE_DIR/previous/$name" ]; then
+      mv "$STAGE_DIR/previous/$name" "$skills_root/$name" || failed=1
+    fi
+  done
+  if [ "$failed" = "1" ]; then
+    STAGE_DIR=""  # Preserve backups if automatic recovery could not finish.
+    die "installation failed and recovery is incomplete. Backups are preserved in '$recovery'."
+  fi
+  die "installation failed. Previous copies were restored; no new skills remain installed."
+}
 
+install_skills() {
+  local source name label rel project skills_root dest action parent entry i
+  local actions=() changes=0
+  CHANGED=()
   label="$(agent_label "$AGENT")"
   rel="$(agent_skills_dir "$AGENT")"
-
-  if [ ! -d "$source" ] || [ ! -f "$source/SKILL.md" ]; then
-    die "skill '$SKILL' was not found." "Run 'install.sh --list' to see the available skills."
-  fi
-  if [ -n "$(find "$source" -type l 2>/dev/null | head -n 1)" ]; then
-    die "skill '$SKILL' contains symbolic links and cannot be installed safely."
-  fi
-
   [ -d "$PROJECT" ] || die "project directory not found: $PROJECT"
   project="$(cd "$PROJECT" && pwd -P)"
   skills_root="$project/$rel"
-  dest="$skills_root/$SKILL"
-
   check_destination_inside_project "$project" "$rel"
 
-  action="install"
-  if [ -L "$dest" ] || [ -e "$dest" ]; then
-    if [ -d "$dest" ] && [ ! -L "$dest" ] && diff -r -q "$source" "$dest" >/dev/null 2>&1; then
-      echo "'$SKILL' is already installed for $label and up to date: $dest"
-      return 0
+  # Inspect every selected source and destination before creating anything.
+  for source in "${SELECTED[@]}"; do
+    name="$(basename "$source")"
+    if [ -n "$(find "$source" -type l 2>/dev/null | head -n 1)" ]; then
+      die "skill '$name' contains symbolic links and cannot be installed safely."
     fi
-    if [ "$FORCE" != "1" ]; then
-      die "'$dest' already exists and differs from the vibe.md version of '$SKILL'." \
-        "Nothing was changed. Re-run with --force to replace it, or move it away first."
+    dest="$skills_root/$name"
+    action="install"
+    if [ -L "$dest" ] || [ -e "$dest" ]; then
+      if [ -d "$dest" ] && [ ! -L "$dest" ] && diff -r -q "$source" "$dest" >/dev/null 2>&1; then
+        action="skip"
+      elif [ "$FORCE" = "1" ]; then
+        action="replace"
+      else
+        die "'$dest' already exists and differs from the vibe.md version of '$name'." \
+          "Nothing was changed. Re-run with --force to replace it, or move it away first."
+      fi
     fi
-    action="replace"
-  fi
+    actions+=("$action")
+    if [ "$action" != "skip" ]; then changes=$((changes + 1)); fi
+  done
 
   if [ "$DRY_RUN" = "1" ]; then
     echo "Dry run: nothing will be written."
-    echo "  Skill:       $SKILL"
-    echo "  Agent:       $label"
-    echo "  Source:      $source"
-    echo "  Destination: $dest"
-    if [ "$action" = "replace" ]; then
-      echo "  Action:      replace the existing copy (--force)"
-    else
-      echo "  Action:      install"
-    fi
-    echo "  Files:"
-    (cd "$source" && find . -type f | sed 's|^\./|    |' | LC_ALL=C sort)
+    for ((i=0; i<${#SELECTED[@]}; i++)); do
+      source="${SELECTED[$i]}"
+      name="$(basename "$source")"
+      printf '  Directory: %s\n  Agent: %s\n  Destination: %s\n  Action: %s\n' \
+        "$name" "$label" "$skills_root/$name" "${actions[$i]}"
+      (cd "$source" && find . -type f | sed 's|^\./|    |' | LC_ALL=C sort)
+    done
     return 0
   fi
 
-  mkdir -p "$skills_root" || die "could not create '$skills_root'."
-  # Stage next to the skills directory (same filesystem, so the final move is
-  # atomic) but outside it, so agents never see a half-copied skill.
-  parent="$(dirname "$skills_root")"
-  STAGE_DIR="$(mktemp -d "$parent/.vibe-md-install.XXXXXX")" ||
-    die "could not create a temporary directory in '$parent'."
-
-  cp -R "$source" "$STAGE_DIR/$SKILL" ||
-    die "copying '$SKILL' failed. Nothing was installed."
-  diff -r -q "$source" "$STAGE_DIR/$SKILL" >/dev/null 2>&1 ||
-    die "the copied files do not match the source. Nothing was installed."
-
-  if [ "$action" = "replace" ]; then
-    mv "$dest" "$STAGE_DIR/previous" || die "could not move the existing '$dest' aside."
-    if ! mv "$STAGE_DIR/$SKILL" "$dest"; then
-      mv "$STAGE_DIR/previous" "$dest" || true
-      die "could not install '$SKILL'. The previous copy was restored."
-    fi
-  else
-    mv "$STAGE_DIR/$SKILL" "$dest" || die "could not install '$SKILL' into '$skills_root'."
+  if [ "$changes" -gt 0 ]; then
+    mkdir -p "$skills_root" || die "could not create '$skills_root'."
+    # Stage the whole selection outside the discovery directory before changing it.
+    parent="$(dirname "$skills_root")"
+    STAGE_DIR="$(mktemp -d "$parent/.vibe-md-install.XXXXXX")" ||
+      die "could not create a temporary directory in '$parent'."
+    mkdir "$STAGE_DIR/new" "$STAGE_DIR/previous"
+    for ((i=0; i<${#SELECTED[@]}; i++)); do
+      [ "${actions[$i]}" != "skip" ] || continue
+      source="${SELECTED[$i]}"
+      name="$(basename "$source")"
+      cp -R "$source" "$STAGE_DIR/new/$name" ||
+        die "copying '$name' failed. Nothing was installed."
+      diff -r -q "$source" "$STAGE_DIR/new/$name" >/dev/null 2>&1 ||
+        die "the copied files do not match the source. Nothing was installed."
+    done
+    for ((i=0; i<${#SELECTED[@]}; i++)); do
+      [ "${actions[$i]}" != "skip" ] || continue
+      name="$(basename "${SELECTED[$i]}")"
+      dest="$skills_root/$name"
+      if [ "${actions[$i]}" = "replace" ]; then
+        mv "$dest" "$STAGE_DIR/previous/$name" || rollback_install "$skills_root"
+      fi
+      CHANGED+=("$name")
+      mv "$STAGE_DIR/new/$name" "$dest" || rollback_install "$skills_root"
+    done
   fi
 
-  if [ "$action" = "replace" ]; then
-    echo "Replaced '$SKILL' for $label: $dest"
-  else
-    echo "Installed '$SKILL' for $label: $dest"
-  fi
+  entry="$ENTRY_SKILL"
+  for ((i=0; i<${#SELECTED[@]}; i++)); do
+    source="${SELECTED[$i]}"
+    name="$(basename "$source")"
+    case "${actions[$i]}" in
+      skip) echo "'$name' is already installed for $label and up to date: $skills_root/$name" ;;
+      replace) echo "Replaced '$name' for $label: $skills_root/$name" ;;
+      install) echo "Installed '$name' for $label: $skills_root/$name" ;;
+    esac
+  done
   echo
-  agent_next_steps "$AGENT" "$SKILL"
+  agent_next_steps "$AGENT" "$entry"
 }
 
 # ---------------------------------------------------------------------------
@@ -357,6 +505,7 @@ install_skill() {
 # ---------------------------------------------------------------------------
 main() {
   SKILL=""
+  GROUP=""
   AGENT=""
   PROJECT=""
   SKILLS_DIR=""
@@ -375,7 +524,7 @@ main() {
         ;;
     esac
     case "$opt" in
-      --skill | --agent | --project | --skills-dir | --ref)
+      --skill | --group | --agent | --project | --skills-dir | --ref)
         if [ -z "$value" ]; then
           [ $# -ge 2 ] || usage_error "$opt needs a value."
           value="$2"
@@ -384,6 +533,7 @@ main() {
         [ -n "$value" ] || usage_error "$opt needs a value."
         case "$opt" in
           --skill) SKILL="$value" ;;
+          --group) GROUP="$value" ;;
           --agent) AGENT="$value" ;;
           --project) PROJECT="$value" ;;
           --skills-dir) SKILLS_DIR="$value" ;;
@@ -408,20 +558,28 @@ main() {
 
   if [ "$list" = "1" ]; then
     resolve_skills_dir
+    discover_skills
     list_skills
     exit 0
   fi
 
-  [ -n "$SKILL" ] || usage_error "missing --skill. Use --list to see the available skills."
+  [ -z "$SKILL" ] || [ -z "$GROUP" ] || usage_error "choose --skill or --group, not both."
+  [ -n "$SKILL$GROUP" ] || usage_error "missing --skill or --group. Use --list to see the available skills."
   [ -n "$AGENT" ] || usage_error "missing --agent. Choose one of: ${SUPPORTED_AGENTS// /, }."
-  is_valid_skill_name "$SKILL" ||
-    usage_error "invalid skill name '$SKILL'. Skill names use lowercase letters, digits and hyphens."
+  if [ -n "$SKILL" ]; then
+    is_valid_skill_name "$SKILL" || usage_error "invalid skill name '$SKILL'. Use lowercase letters, digits and hyphens."
+  else
+    is_valid_skill_name "$GROUP" || usage_error "invalid group name '$GROUP'. Use lowercase letters, digits and hyphens."
+  fi
   agent_skills_dir "$AGENT" >/dev/null ||
     usage_error "unknown agent '$AGENT'. Choose one of: ${SUPPORTED_AGENTS// /, }."
   PROJECT="${PROJECT:-$PWD}"
 
   resolve_skills_dir
-  install_skill
+  discover_skills
+  select_skills
+  prepare_selection
+  install_skills
 }
 
 main "$@"
